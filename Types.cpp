@@ -22,7 +22,7 @@ ObjFile::ObjFile()
 
 bool ObjFile::load(const std::string& filename)
 {
-    fileDir = filename.substr(0, filename.find_last_of("/"));
+    fileDir = filename.substr(0, filename.find_last_of("/") + 1);
     fileName = filename.substr(filename.find_last_of("/") + 1);
 
     auto now = std::chrono::system_clock::now();
@@ -115,6 +115,10 @@ bool ObjFile::load(const std::string& filename)
                     face.n3 = std::stoi(std::string(s3, s3.rfind('/') + 1));
                     faces.back().faces.push_back(face);
                 }
+                unsigned long long faceCount = getFaceCount();
+                PointIndex2FaceIndex[face.v1].insert( faceCount);
+                PointIndex2FaceIndex[face.v2].insert( faceCount);
+                PointIndex2FaceIndex[face.v3].insert( faceCount);
             }
             else
             {
@@ -193,6 +197,164 @@ bool ObjFile::save(const std::string& filename)
         return true;
     }
     return false;
+}
+
+void ObjFile::cut()
+{
+    auto now = std::chrono::system_clock::now();
+    // 收集符合条件的点所在的面
+    float midX = (minX + maxX) / 2;
+    std::set<int> saveFacesIndex;
+    for (int i = 0; i < points.size(); i++)
+    {
+        if (points[i].x > midX)
+        {
+            int pointIndex = i+1;
+            saveFacesIndex.insert(PointIndex2FaceIndex[pointIndex].begin(),
+                PointIndex2FaceIndex[pointIndex].end());
+        }
+    }
+    cout << "Save faces: " << saveFacesIndex.size() << endl;
+
+    // 将这些面的点、纹理、法线保存下来
+    std::set<int> savePointIndexSet;
+    std::set<int> saveTextureIndexSet;
+    std::map<int, int> oldPointIndex2New;
+    std::map<int, int> oldTextureIndex2New;
+    // std::vector<int> saveNormalsIndex;
+
+    // 保存点、纹理、法线并创建映射
+    for (int index : saveFacesIndex)
+    {
+        Face* face = getFace(index);
+        if (savePointIndexSet.find(face->v1) == savePointIndexSet.end())
+        {
+            savePointIndexSet.insert(face->v1);
+            oldPointIndex2New[face->v1] = static_cast<int>(savePointIndexSet.size());
+        }
+        if (savePointIndexSet.find(face->v2) == savePointIndexSet.end())
+        {
+            savePointIndexSet.insert(face->v2);
+            oldPointIndex2New[face->v2] = static_cast<int>(savePointIndexSet.size());
+        }
+        if (savePointIndexSet.find(face->v3) == savePointIndexSet.end())
+        {
+            savePointIndexSet.insert(face->v3);
+            oldPointIndex2New[face->v3] = static_cast<int>(savePointIndexSet.size());
+        }
+
+        if (saveTextureIndexSet.find(face->t1) == saveTextureIndexSet.end())
+        {
+            saveTextureIndexSet.insert(face->t1);
+            oldTextureIndex2New[face->t1] = static_cast<int>(saveTextureIndexSet.size());
+        }
+        if (saveTextureIndexSet.find(face->t2) == saveTextureIndexSet.end())
+        {
+            saveTextureIndexSet.insert(face->t2);
+            oldTextureIndex2New[face->t2] = static_cast<int>(saveTextureIndexSet.size());
+        }
+        if (saveTextureIndexSet.find(face->t3) == saveTextureIndexSet.end())
+        {
+            saveTextureIndexSet.insert(face->t3);
+            oldTextureIndex2New[face->t3] = static_cast<int>(saveTextureIndexSet.size());
+        }
+    }
+    cout << "Save points: " << savePointIndexSet.size() << endl;
+    cout << "Save texture points: " << saveTextureIndexSet.size() << endl;
+
+    // 重新生成对应的面
+    std::vector<MtlFaces> saveMtlFaces;
+    int saveMtlIndex = -1;
+    for (int index : saveFacesIndex)
+    {
+        int mtlIndex = getMtlIndex(index);
+        if (mtlIndex > saveMtlIndex)
+        {
+            saveMtlIndex = mtlIndex;
+            MtlFaces facesNow;
+            facesNow.mtl = mtlIndex;
+            saveMtlFaces.push_back(facesNow);
+        }
+        Face newFace;
+        newFace.v1 = oldPointIndex2New[getFace(index)->v1];
+        newFace.v2 = oldPointIndex2New[getFace(index)->v2];
+        newFace.v3 = oldPointIndex2New[getFace(index)->v3];
+        newFace.t1 = oldTextureIndex2New[getFace(index)->t1];
+        newFace.t2 = oldTextureIndex2New[getFace(index)->t2];
+        newFace.t3 = oldTextureIndex2New[getFace(index)->t3];
+        saveMtlFaces.back().faces.push_back(newFace);
+    }
+
+
+    // write new obj file
+    string newFilePath = fileDir + "cut.obj";
+    std::ofstream file(newFilePath);
+    if (!file.is_open())
+    {
+        cout << "Failed to open file: " << newFilePath << endl;
+        return;
+    }
+    file << "mtllib " << mtllib << std::endl;
+    for (int i = 0; i < savePointIndexSet.size(); i++)
+    {
+        file << "v " << points[i] << std::endl;
+    }
+    for (int i = 0; i < saveTextureIndexSet.size(); i++)
+    {
+        file << "vt " << texturePoints[i] << std::endl;
+    }
+    for (const auto& face : saveMtlFaces)
+    {
+        file << "usemtl " << face.mtl << std::endl;
+        for (const auto& f : face.faces)
+        {
+            file << "f " << f << std::endl;
+        }
+    }
+    file.close();
+    auto end = std::chrono::system_clock::now();
+    std::chrono::duration<double> cutElapsedSeconds = end - now;
+    std::cout << "Cut " << newFilePath << ": " << endl
+        << "     x > " << midX << endl
+        << "    cost time: " << cutElapsedSeconds.count() << "s" << std::endl;
+}
+
+Face* ObjFile::getFace(int faceIndex)
+{
+    if (faces.size() == 0)
+        return nullptr;
+
+    int faceNum = 0;
+    while (faceNum < faces.size() && faceIndex >= faces[faceNum].faces.size())
+    {
+        faceIndex -= faces[faceNum].faces.size();
+        faceNum++;
+    }
+    return &faces[faceNum].faces[faceIndex];
+}
+
+unsigned long long ObjFile::getFaceCount()
+{
+    unsigned long long face_count = 0;
+    for (const auto& face : faces)
+    {
+        face_count += face.faces.size();
+    }
+    return face_count;
+}
+
+int ObjFile::getMtlIndex(int faceIndex)
+{
+    if (faces.size() == 0)
+        return -1;
+
+    int faceNum = 0;
+    while (faceNum < faces.size() && faceIndex >= faces[faceNum].faces.size())
+    {
+        faceIndex -= faces[faceNum].faces.size();
+        faceNum++;
+    }
+    return faces[faceNum].mtl;
 }
 
 void ObjFile::cmp(string& filename1, string& filename2)

@@ -6,7 +6,9 @@
 #define TYPES_H
 
 #include <chrono>
+#include <map>
 #include <ostream>
+#include <set>
 #include <vector>
 #include <string>
 
@@ -90,11 +92,19 @@ private:
     std::string fileDir;
     std::string fileName;
     std::chrono::duration<double> elapsedSeconds;
+
+    // for cut
+    std::map<int, std::set<unsigned long long>> PointIndex2FaceIndex;
 public:
     ObjFile();
     bool load(const std::string& filename);
     void info();
     bool save(const std::string& filename);
+
+    void cut();
+    Face* getFace(int faceIndex);
+    unsigned long long getFaceCount();
+    int getMtlIndex(int faceIndex);
 
     // debug function
     void cmp(string& filename1, string& filename2);

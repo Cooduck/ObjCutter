@@ -22,8 +22,9 @@ int main()
         return 1;
     }
     objFile.info();
-    objFile.save(outputPath);
+    objFile.cut();
 
+    // objFile.save(outputPath);
     // objFile.cmp(filePath, outputPath);
     return 0;
 }
