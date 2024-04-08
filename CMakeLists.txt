@@ -3,4 +3,8 @@ project(ObjCutter)
 
 set(CMAKE_CXX_STANDARD 20)
 
-add_executable(ObjCutter main.cpp)
+add_executable(ObjCutter main.cpp
+        Const.h
+        Types.cpp
+        Types.h
+)
