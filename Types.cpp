@@ -182,11 +182,6 @@ bool ObjFile::save(const std::string& filename)
         }
         for (const auto& face : faces)
         {
-            // file << "usemtl " << face.mtl << std::endl;
-            // for (const auto& f : face.faces)
-            // {
-            //     file << "f " << f << std::endl;
-            // }
             file << face;
         }
         file.close();
@@ -209,10 +204,6 @@ void ObjFile::cut()
         if (points[i].x > midX)
         {
             int pointIndex = i + 1;
-            // for (auto faceIndex : PointIndex2FaceIndex[pointIndex])
-            // {
-            //
-            // }
             saveFacesIndex.insert(PointIndex2FaceIndex[pointIndex].begin(),
                                   PointIndex2FaceIndex[pointIndex].end());
         }

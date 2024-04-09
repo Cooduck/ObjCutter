@@ -23,16 +23,6 @@ struct Vector3{
     }
 };
 
-struct NewVector3 :Vector3
-{
-    int newIndex;
-
-    friend bool operator<(const NewVector3& lhs, const NewVector3& rhs)
-    {
-        return lhs.newIndex < rhs.newIndex;
-    }
-};
-
 struct Vector2Texture {
     float x, y;
 
