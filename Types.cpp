@@ -202,9 +202,10 @@ void ObjFile::cut()
     // 将这些面的点、纹理、法线保存下来
     std::set<int> savePointIndex;
     std::set<int> saveTextureIndex;
+    std::set<int> saveNormalsIndex;
     std::map<int, int> oldPointIndex2New;
     std::map<int, int> oldTextureIndex2New;
-    // std::vector<int> saveNormalsIndex;
+    std::map<int, int> oldNormalsIndex2New;
 
     // 保存点、纹理、法线并创建映射
     for (int index : saveFacesIndex)
@@ -216,13 +217,13 @@ void ObjFile::cut()
         saveTextureIndex.insert(face->t1);
         saveTextureIndex.insert(face->t2);
         saveTextureIndex.insert(face->t3);
-        // saveNormalsIndex.insert(face->n1);
-        // saveNormalsIndex.insert(face->n2);
-        // saveNormalsIndex.insert(face->n3);
+        saveNormalsIndex.insert(face->n1);
+        saveNormalsIndex.insert(face->n2);
+        saveNormalsIndex.insert(face->n3);
     }
     cout << "Save points: " << savePointIndex.size() << endl;
     cout << "Save texture points: " << saveTextureIndex.size() << endl;
-    // cout << "Save normals: " << saveNormalsIndex.size() << endl;
+    cout << "Save normals: " << saveNormalsIndex.size() << endl;
 
     // write new obj file
     string newFilePath = fileDir + "cut.obj";
@@ -247,6 +248,13 @@ void ObjFile::cut()
         newIndex++;
         oldTextureIndex2New[index] = newIndex;
     }
+    for (int index : saveNormalsIndex)
+    {
+        static int newIndex = 0;
+        file << "vn " << normals[index - 1] << std::endl;
+        newIndex++;
+        oldNormalsIndex2New[index] = newIndex;
+    }
     // 重新生成对应的面
     std::vector<MtlFaces> saveMtlFaces;
     int saveMtlIndex = -1;
@@ -266,6 +274,9 @@ void ObjFile::cut()
         newFace.t1 = oldTextureIndex2New[oldFace->t1];
         newFace.t2 = oldTextureIndex2New[oldFace->t2];
         newFace.t3 = oldTextureIndex2New[oldFace->t3];
+        newFace.n1 = oldNormalsIndex2New[oldFace->n1];
+        newFace.n2 = oldNormalsIndex2New[oldFace->n2];
+        newFace.n3 = oldNormalsIndex2New[oldFace->n3];
         file << "f " << newFace << std::endl;
     }
     file.close();
