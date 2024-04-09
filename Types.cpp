@@ -193,8 +193,19 @@ void ObjFile::cut()
         if (points[i].x > midX)
         {
             int pointIndex = i + 1;
-            saveFacesIndex.insert(PointIndex2FaceIndex[pointIndex].begin(),
-                                  PointIndex2FaceIndex[pointIndex].end());
+            for (int index : PointIndex2FaceIndex[pointIndex])
+            {
+                Face* face = getFace(index);
+                auto p1 = points[face->v1];
+                auto p2 = points[face->v2];
+                auto p3 = points[face->v3];
+                if (p1.x > midX && p2.x > midX && p3.x > midX)
+                {
+                    saveFacesIndex.insert(index);
+                }
+            }
+            // saveFacesIndex.insert(PointIndex2FaceIndex[pointIndex].begin(),
+                                  // PointIndex2FaceIndex[pointIndex].end());
         }
     }
     cout << "Save faces: " << saveFacesIndex.size() << endl;
@@ -214,12 +225,18 @@ void ObjFile::cut()
         savePointIndex.insert(face->v1);
         savePointIndex.insert(face->v2);
         savePointIndex.insert(face->v3);
-        saveTextureIndex.insert(face->t1);
-        saveTextureIndex.insert(face->t2);
-        saveTextureIndex.insert(face->t3);
-        saveNormalsIndex.insert(face->n1);
-        saveNormalsIndex.insert(face->n2);
-        saveNormalsIndex.insert(face->n3);
+        if (face->t1 > 0)
+        {
+            saveTextureIndex.insert(face->t1);
+            saveTextureIndex.insert(face->t2);
+            saveTextureIndex.insert(face->t3);
+        }
+        if (face->n1 > 0)
+        {
+            saveNormalsIndex.insert(face->n1);
+            saveNormalsIndex.insert(face->n2);
+            saveNormalsIndex.insert(face->n3);
+        }
     }
     cout << "Save points: " << savePointIndex.size() << endl;
     cout << "Save texture points: " << saveTextureIndex.size() << endl;
