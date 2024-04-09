@@ -102,7 +102,7 @@ public:
     bool save(const std::string& filename);
 
     void cut();
-    Face* getFace(int faceIndex);
+    Face* getFace(unsigned long long  faceIndex);
     unsigned long long getFaceCount();
     int getMtlIndex(int faceIndex);
 

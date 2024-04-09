@@ -190,16 +190,16 @@ void ObjFile::cut()
     std::set<int> saveFacesIndex;
     for (int i = 0; i < points.size(); i++)
     {
-        if (points[i].x > midX)
+        if (points[i].x < midX)
         {
             int pointIndex = i + 1;
-            for (int index : PointIndex2FaceIndex[pointIndex])
+            for (unsigned long long index : PointIndex2FaceIndex[pointIndex])
             {
                 Face* face = getFace(index);
-                auto p1 = points[face->v1];
-                auto p2 = points[face->v2];
-                auto p3 = points[face->v3];
-                if (p1.x > midX && p2.x > midX && p3.x > midX)
+                const auto& p1 = points[face->v1];
+                const auto& p2 = points[face->v2];
+                const auto& p3 = points[face->v3];
+                if (p1.x < midX && p2.x < midX && p3.x < midX)
                 {
                     saveFacesIndex.insert(index);
                 }
@@ -304,18 +304,18 @@ void ObjFile::cut()
         << "    cost time: " << cutElapsedSeconds.count() << "s" << std::endl;
 }
 
-Face* ObjFile::getFace(int faceIndex)
+Face* ObjFile::getFace(unsigned long long faceIndex)
 {
-    if (faces.size() == 0)
+    if (faces.empty())
         return nullptr;
 
     int faceNum = 0;
-    while (faceNum < faces.size() && faceIndex >= faces[faceNum].faces.size())
+    while (faceNum < faces.size() && faceIndex > faces[faceNum].faces.size())
     {
         faceIndex -= faces[faceNum].faces.size();
         faceNum++;
     }
-    return &faces[faceNum].faces[faceIndex];
+    return &faces[faceNum].faces[faceIndex - 1];
 }
 
 unsigned long long ObjFile::getFaceCount()
