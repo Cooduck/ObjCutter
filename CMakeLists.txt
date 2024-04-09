@@ -7,4 +7,6 @@ add_executable(ObjCutter main.cpp
         Const.h
         Types.cpp
         Types.h
+        ObjCutter.cpp
+        ObjCutter.h
 )
