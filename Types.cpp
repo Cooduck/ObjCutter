@@ -15,6 +15,11 @@ using std::cout;
 using std::endl;
 using std::string;
 
+bool Plane::checkPointSide(Vector3 p) const
+{
+    return (normal.x * p.x + normal.y * p.y + normal.z * p.z + D) >= 0;
+}
+
 ObjFile::ObjFile()
 {
     maxX = maxY = maxZ = -1e18;
@@ -182,30 +187,53 @@ bool ObjFile::save(const std::string& filename)
     return false;
 }
 
-void ObjFile::cut()
+Vector3 ObjFile::getCenter() const
+{
+    Vector3 center{};
+    center.x = (minX + maxX) / 2;
+    center.y = (minY + maxY) / 2;
+    center.z = (minZ + maxZ) / 2;
+    return center;
+}
+
+void ObjFile::cut(const Plane& plane)
 {
     auto now = std::chrono::system_clock::now();
     // 收集符合条件的点所在的面
     float midX = (minX + maxX) / 2;
-    std::set<int> saveFacesIndex;
+    std::set<unsigned int> saveFacesIndex;
+    std::vector<Face> edgeFaces;
+    std::vector<Vector3> edgePoints;
+    std::vector<Vector2Texture> edgeTexturePoints;
     for (int i = 0; i < points.size(); i++)
     {
-        if (points[i].x < midX)
+        if (plane.checkPointSide(points[i]))
         {
             int pointIndex = i + 1;
-            for (unsigned long long index : PointIndex2FaceIndex[pointIndex])
+            for (unsigned int index : PointIndex2FaceIndex[pointIndex])
             {
+                if (FaceIndex2IsCut[index])
+                    continue;
+
                 Face* face = getFace(index);
-                const auto& p1 = points[face->v1];
-                const auto& p2 = points[face->v2];
-                const auto& p3 = points[face->v3];
-                if (p1.x < midX && p2.x < midX && p3.x < midX)
+                const auto& p1 = points[face->v1 - 1];
+                const auto& p2 = points[face->v2 - 1];
+                const auto& p3 = points[face->v3 - 1];
+                if (plane.checkPointSide(p1) &&
+                    plane.checkPointSide(p2) &&
+                    plane.checkPointSide(p3))
                 {
                     saveFacesIndex.insert(index);
+                    FaceIndex2IsCut[index] = true;
+                }
+                else
+                {
+                    cutFace(index, plane, edgeFaces, edgePoints, edgeTexturePoints);
+                    FaceIndex2IsCut[index] = true;
                 }
             }
-            // saveFacesIndex.insert(PointIndex2FaceIndex[pointIndex].begin(),
-                                  // PointIndex2FaceIndex[pointIndex].end());
+            saveFacesIndex.insert(PointIndex2FaceIndex[pointIndex].begin(),
+                                  PointIndex2FaceIndex[pointIndex].end());
         }
     }
     cout << "Save faces: " << saveFacesIndex.size() << endl;
@@ -300,9 +328,43 @@ void ObjFile::cut()
     auto end = std::chrono::system_clock::now();
     std::chrono::duration<double> cutElapsedSeconds = end - now;
     std::cout << "Cut " << newFilePath << ": " << endl
-        << "     x > " << midX << endl
+        << "     point > " << plane.center << plane.normal << endl
         << "    cost time: " << cutElapsedSeconds.count() << "s" << std::endl;
 }
+
+void ObjFile::cutFace(unsigned int faceIndex, const Plane& plane, std::vector<Face>& newFaces, std::vector<Vector3>& newPoints,
+    std::vector<Vector2Texture>& newTexturePoints)
+{
+    Face* face = getFace(faceIndex);
+    const auto& p1 = points[face->v1 - 1];
+    const auto& p2 = points[face->v2 - 1];
+    const auto& p3 = points[face->v3 - 1];
+    const auto& t1 = texturePoints[face->t1 - 1];
+    const auto& t2 = texturePoints[face->t2 - 1];
+    const auto& t3 = texturePoints[face->t3 - 1];
+
+    bool p1side = plane.checkPointSide(p1);
+    bool p2side = plane.checkPointSide(p2);
+    bool p3side = plane.checkPointSide(p3);
+    if (p1side == p2side && p2side == p3side)
+    {
+        cout << "The face is ??? " << faceIndex << endl;
+    }
+
+    float d1 = plane.distance(p1);
+    if (!p1side)
+        d1 = -d1;
+    float d2 = plane.distance(p2);
+    if (!p2side)
+        d2 = -d2;
+    float d3 = plane.distance(p3);
+    if (!p3side)
+        d3 = -d3;
+
+    // 输出三个顶点与平面的距离
+    // cout << "Distance: " << d1 << " " << d2 << " " << d3 << endl;
+}
+
 
 Face* ObjFile::getFace(unsigned long long faceIndex)
 {
@@ -372,3 +434,36 @@ void ObjFile::cmp(string& filename1, string& filename2)
     file1.close();
     file2.close();
 }
+
+void ObjFile::showTriangleAndTexture(int faceIndex)
+{
+    Face* face = getFace(faceIndex);
+    const auto& p1 = points[face->v1 - 1];
+    const auto& p2 = points[face->v2 - 1];
+    const auto& p3 = points[face->v3 - 1];
+    const auto& t1 = texturePoints[face->t1 - 1];
+    const auto& t2 = texturePoints[face->t2 - 1];
+    const auto& t3 = texturePoints[face->t3 - 1];
+    cout << "Triangle: " << endl
+        << p1 << endl
+        << p2 << endl
+        << p3 << endl;
+    cout << "Texture: " << endl
+        << t1 << endl
+        << t2 << endl
+        << t3 << endl;
+    // 输出三角形边长
+    float len1 = (p2 - p1).length();
+    float len2 = (p3 - p2).length();
+    float len3 = (p1 - p3).length();
+    cout << "Triangle length: " << len1 << " " << len2 << " " << len3 << endl;
+    // 输出材质边长
+    float texLen1 = (t2 - t1).length();
+    float texLen2 = (t3 - t2).length();
+    float texLen3 = (t1 - t3).length();
+    cout << "Texture length: " << texLen1 << " " << texLen2 << " " << texLen3 << endl;
+
+}
+
+
+

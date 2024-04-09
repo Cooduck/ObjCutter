@@ -22,7 +22,9 @@ int main()
         return 1;
     }
     objFile.info();
-    objFile.cut();
+    Vector3 planeCenter = objFile.getCenter();
+    Plane plane{planeCenter, Vector3{0, 1, 0}};
+    objFile.cut(plane);
 
     // objFile.save(outputPath);
     // objFile.cmp(filePath, outputPath);

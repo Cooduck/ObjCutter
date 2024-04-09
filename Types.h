@@ -6,6 +6,7 @@
 #define TYPES_H
 
 #include <chrono>
+#include <cmath>
 #include <map>
 #include <ostream>
 #include <set>
@@ -21,6 +22,26 @@ struct Vector3{
     {
         return os << obj.x << " " << obj.y << " " << obj.z;
     }
+
+    Vector3 operator+(const Vector3& other) const {
+        return Vector3{x + other.x, y + other.y, z + other.z};
+    }
+
+    Vector3 operator-(const Vector3& other) const {
+        return Vector3{x - other.x, y - other.y, z - other.z};
+    }
+
+    Vector3 operator*(float scalar) const {
+        return Vector3{x * scalar, y * scalar, z * scalar};
+    }
+
+    Vector3 operator*(const Vector3& other) const {
+        return Vector3{x * other.x, y * other.y, z * other.z};
+    }
+
+    float length() const {
+        return std::sqrt(x*x + y*y + z*z);
+    }
 };
 
 struct Vector2Texture {
@@ -29,6 +50,19 @@ struct Vector2Texture {
     friend std::ostream& operator<<(std::ostream& os, const Vector2Texture& obj)
     {
         return os << obj.x << " " << obj.y;
+    }
+
+    Vector2Texture operator+(const Vector2Texture& other) const {
+        return Vector2Texture{x + other.x, y + other.y};
+    }
+
+    Vector2Texture operator-(const Vector2Texture& other) const {
+        return Vector2Texture{x - other.x, y - other.y};
+    }
+
+
+    float length() const {
+        return std::sqrt(x*x + y*y);
     }
 };
 
@@ -41,9 +75,9 @@ struct Vector3Normal {
 };
 
 struct Face {
-    int v1{}, v2{}, v3{};
-    int t1{}, t2{}, t3{};
-    int n1{}, n2{}, n3{};
+    unsigned int v1{}, v2{}, v3{};
+    unsigned int t1{}, t2{}, t3{};
+    unsigned int n1{}, n2{}, n3{};
     friend std::ostream& operator<<(std::ostream& os, const Face& obj)
     {
         if (obj.n1 != 0)
@@ -65,7 +99,7 @@ struct Face {
 
 struct MtlFaces
 {
-    int mtl;
+    unsigned int mtl;
     std::vector<Face> faces;
     friend std::ostream& operator<<(std::ostream& os, const MtlFaces& obj)
     {
@@ -74,6 +108,24 @@ struct MtlFaces
             os << "f " << f << std::endl;
         }
         return os;
+    }
+};
+
+struct Plane {
+    Vector3 center;
+    Vector3 normal;
+    float D;
+
+    Plane(Vector3 pt, Vector3 n) : center(pt), normal(n) {
+        D = -n.x * pt.x - n.y * pt.y - n.z * pt.z;
+    }
+
+    bool checkPointSide(Vector3 p) const;
+
+    [[nodiscard]] float distance(const Vector3& p) const {
+        Vector3 v = normal * p;
+        Vector3 cv = normal * center;
+        return (v - cv).length();
     }
 };
 
@@ -94,20 +146,32 @@ private:
     std::chrono::duration<double> elapsedSeconds;
 
     // for cut
-    std::map<int, std::set<unsigned long long>> PointIndex2FaceIndex;
+    std::map<unsigned int, std::set<unsigned int>> PointIndex2FaceIndex;
+    std::map<unsigned int, bool> FaceIndex2IsCut;
+
 public:
     ObjFile();
     bool load(const std::string& filename);
     void info();
     bool save(const std::string& filename);
+    [[nodiscard]] Vector3 getCenter() const;
 
-    void cut();
+
+    // for cut
+    void cut(const Plane& plane);
     Face* getFace(unsigned long long  faceIndex);
     unsigned long long getFaceCount();
     int getMtlIndex(int faceIndex);
+    void cutFace(unsigned int faceIndex, const Plane& plane,
+        // output
+        std::vector<Face>& newFaces,
+        std::vector<Vector3>& newPoints,
+        std::vector<Vector2Texture>& newTexturePoints);
 
     // debug function
     void cmp(string& filename1, string& filename2);
+    void showTriangleAndTexture(int faceIndex);
+
 };
 
 #endif //TYPES_H
