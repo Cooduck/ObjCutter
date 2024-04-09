@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <chrono>
 #include <iostream>
+#include <string.h>
 
 using std::cout;
 using std::endl;
@@ -26,111 +27,99 @@ bool ObjFile::load(const std::string& filename)
     fileName = filename.substr(filename.find_last_of("/") + 1);
 
     auto now = std::chrono::system_clock::now();
-    std::ifstream file(filename);
-    if (file.is_open())
+    FILE* file = fopen(filename.c_str(), "r");
+    if (file == nullptr)
     {
-        std::string line;
-        int mtlNumNow = 0;
-        while (std::getline(file, line))
-        {
-            // std::cout << line << std::endl;
-            // 将这一行解析
-            std::stringstream ss(line);
-            std::string type;
-            ss >> type;
-            if (type == "mtllib")
-            {
-                ss >> mtllib;
-            }
-            else if (type == "v")
-            {
-                Vector3 point{};
-                ss >> point.x >> point.y >> point.z;
-                minX = point.x < minX ? point.x : minX;
-                minY = point.y < minY ? point.y : minY;
-                minZ = point.z < minZ ? point.z : minZ;
-                maxX = point.x > maxX ? point.x : maxX;
-                maxY = point.y > maxY ? point.y : maxY;
-                maxZ = point.z > maxZ ? point.z : maxZ;
-                if (point.x > 20000)
-                {
-                    std::cout << "x too large: " << line << std::endl;
-                }
-                points.push_back(point);
-            }
-            else if (type == "vt")
-            {
-                Vector2Texture point{};
-                ss >> point.x >> point.y;
-                texturePoints.push_back({point.x, point.y});
-            }
-            else if (type == "vn")
-            {
-                Vector3Normal normal{};
-                ss >> normal.x >> normal.y >> normal.z;
-                normals.push_back(normal);
-            }
-            else if (type == "usemtl")
-            {
-                ss >> mtlNumNow;
-                MtlFaces facesNow;
-                facesNow.mtl = mtlNumNow;
-                faces.push_back(facesNow);
-            }
-            else if (type == "f")
-            {
-                Face face{};
-                std::string s1, s2, s3;
-                ss >> s1 >> s2 >> s3;
-                // 找到s1中有多少个 /
-                int count = std::count(s1.begin(), s1.end(), '/');
-                if (count == 0)
-                {
-                    face.v1 = std::stoi(s1);
-                    face.v2 = std::stoi(s2);
-                    face.v3 = std::stoi(s3);
-                    faces.back().faces.push_back(face);
-                }
-                else if (count == 1)
-                {
-                    face.v1 = std::stoi(std::string(s1, 0, s1.find('/')));
-                    face.v2 = std::stoi(std::string(s2, 0, s2.find('/')));
-                    face.v3 = std::stoi(std::string(s3, 0, s3.find('/')));
-                    face.t1 = std::stoi(std::string(s1, s1.find('/') + 1));
-                    face.t2 = std::stoi(std::string(s2, s2.find('/') + 1));
-                    face.t3 = std::stoi(std::string(s3, s3.find('/') + 1));
-                    faces.back().faces.push_back(face);
-                }
-                else if (count == 2)
-                {
-                    face.v1 = std::stoi(std::string(s1, 0, s1.find('/')));
-                    face.v2 = std::stoi(std::string(s2, 0, s2.find('/')));
-                    face.v3 = std::stoi(std::string(s3, 0, s3.find('/')));
-                    face.t1 = std::stoi(std::string(s1, s1.find('/') + 1, s1.rfind('/')));
-                    face.t2 = std::stoi(std::string(s2, s2.find('/') + 1, s2.rfind('/')));
-                    face.t3 = std::stoi(std::string(s3, s3.find('/') + 1, s3.rfind('/')));
-                    face.n1 = std::stoi(std::string(s1, s1.rfind('/') + 1));
-                    face.n2 = std::stoi(std::string(s2, s2.rfind('/') + 1));
-                    face.n3 = std::stoi(std::string(s3, s3.rfind('/') + 1));
-                    faces.back().faces.push_back(face);
-                }
-                unsigned long long faceCount = getFaceCount();
-                PointIndex2FaceIndex[face.v1].insert(faceCount);
-                PointIndex2FaceIndex[face.v2].insert(faceCount);
-                PointIndex2FaceIndex[face.v3].insert(faceCount);
-            }
-            else
-            {
-                // std::cout << line << std::endl;
-            }
-        }
-
-        file.close();
-        auto end = std::chrono::system_clock::now();
-        elapsedSeconds = end - now;
-        return true;
+        std::cout << "Error: Cannot open file " << filename << std::endl;
+        return false;
     }
-    return false;
+
+    cout << "Loading " << filename << "..." << endl;
+    int mtlNumNow = 0;
+    char type[40];
+    while (fscanf(file, "%s", type) != EOF)
+    {
+        if (strcmp(type, "mtllib") == 0)
+        {
+            char mtllibBuff[200];
+            fscanf(file, "%s", mtllibBuff);
+            mtllib = string(mtllibBuff);
+        }
+        else if (strcmp(type, "v") == 0)
+        {
+            Vector3 point{};
+            fscanf(file, "%f %f %f", &point.x, &point.y, &point.z);
+            minX = point.x < minX ? point.x : minX;
+            minY = point.y < minY ? point.y : minY;
+            minZ = point.z < minZ ? point.z : minZ;
+            maxX = point.x > maxX ? point.x : maxX;
+            maxY = point.y > maxY ? point.y : maxY;
+            maxZ = point.z > maxZ ? point.z : maxZ;
+            points.push_back(point);
+        }
+        else if (strcmp(type, "vt") == 0)
+        {
+            Vector2Texture point{};
+            fscanf(file, "%f %f", &point.x, &point.y);
+            texturePoints.push_back({point.x, point.y});
+        }
+        else if (strcmp(type, "vn") == 0)
+        {
+            Vector3Normal normal{};
+            fscanf(file, "%f %f %f", &normal.x, &normal.y, &normal.z);
+            normals.push_back(normal);
+        }
+        else if (strcmp(type, "usemtl") == 0)
+        {
+            fscanf(file, "%d", &mtlNumNow);
+            MtlFaces facesNow;
+            facesNow.mtl = mtlNumNow;
+            faces.push_back(facesNow);
+        }
+        else if (strcmp(type, "f") == 0)
+        {
+            Face face{};
+            // std::string s1, s2, s3;
+            char s1[50], s2[50], s3[50];
+            fscanf(file, "%s %s %s", s1, s2, s3);
+            // 找到s1中有多少个 /
+            int count = std::count(s1, s1 + strlen(s1), '/');
+            if (count == 0)
+            {
+                face.v1 = std::stoi(s1);
+                face.v2 = std::stoi(s2);
+                face.v3 = std::stoi(s3);
+                faces.back().faces.push_back(face);
+            }
+            else if (count == 1)
+            {
+                sscanf(s1, "%d/%d", &face.v1, &face.t1);
+                sscanf(s2, "%d/%d", &face.v2, &face.t2);
+                sscanf(s3, "%d/%d", &face.v3, &face.t3);
+                faces.back().faces.push_back(face);
+            }
+            else if (count == 2)
+            {
+                sscanf(s1, "%d/%d/%d", &face.v1, &face.t1, &face.n1);
+                sscanf(s2, "%d/%d/%d", &face.v2, &face.t2, &face.n2);
+                sscanf(s3, "%d/%d/%d", &face.v3, &face.t3, &face.n3);
+                faces.back().faces.push_back(face);
+            }
+            unsigned long long faceCount = getFaceCount();
+            PointIndex2FaceIndex[face.v1].insert(faceCount);
+            PointIndex2FaceIndex[face.v2].insert(faceCount);
+            PointIndex2FaceIndex[face.v3].insert(faceCount);
+        }
+        else
+        {
+            std::cout  << "unknown type: " << type << std::endl;
+        }
+    }
+
+    fclose(file);
+    auto end = std::chrono::system_clock::now();
+    elapsedSeconds = end - now;
+    return true;
 }
 
 void ObjFile::info()
