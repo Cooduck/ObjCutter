@@ -79,7 +79,6 @@ bool ObjFile::load(const std::string& filename)
             }
             else if (type == "f")
             {
-
                 Face face{};
                 std::string s1, s2, s3;
                 ss >> s1 >> s2 >> s3;
@@ -116,9 +115,9 @@ bool ObjFile::load(const std::string& filename)
                     faces.back().faces.push_back(face);
                 }
                 unsigned long long faceCount = getFaceCount();
-                PointIndex2FaceIndex[face.v1].insert( faceCount);
-                PointIndex2FaceIndex[face.v2].insert( faceCount);
-                PointIndex2FaceIndex[face.v3].insert( faceCount);
+                PointIndex2FaceIndex[face.v1].insert(faceCount);
+                PointIndex2FaceIndex[face.v2].insert(faceCount);
+                PointIndex2FaceIndex[face.v3].insert(faceCount);
             }
             else
             {
@@ -142,7 +141,7 @@ void ObjFile::info()
         face_count += face.faces.size();
     }
     std::cout << "Total Lines: "
-        << points.size() + texturePoints.size() + normals.size() + faces.size() + face_count +1
+        << points.size() + texturePoints.size() + normals.size() + faces.size() + face_count + 1
         << std::endl;
 
     std::cout << "Points: " << points.size() << std::endl;
@@ -152,11 +151,11 @@ void ObjFile::info()
 
     std::cout << "Min X Y Z: "
         << minX << " " << minY << " " << minZ
-    << std::endl;
+        << std::endl;
 
     std::cout << "Max X Y Z: "
         << maxX << " " << maxY << " " << maxZ
-    << std::endl;
+        << std::endl;
 
     std::cout << "File Dir: " << fileDir << std::endl;
     std::cout << "Load " << fileName << " in " << elapsedSeconds.count() << "s" << std::endl;
@@ -171,7 +170,7 @@ bool ObjFile::save(const std::string& filename)
         file << "mtllib " << mtllib << std::endl;
         for (const auto& point : points)
         {
-            file << "v "<< point << std::endl;
+            file << "v " << point << std::endl;
         }
         for (const auto& tpoint : texturePoints)
         {
@@ -209,16 +208,20 @@ void ObjFile::cut()
     {
         if (points[i].x > midX)
         {
-            int pointIndex = i+1;
+            int pointIndex = i + 1;
+            // for (auto faceIndex : PointIndex2FaceIndex[pointIndex])
+            // {
+            //
+            // }
             saveFacesIndex.insert(PointIndex2FaceIndex[pointIndex].begin(),
-                PointIndex2FaceIndex[pointIndex].end());
+                                  PointIndex2FaceIndex[pointIndex].end());
         }
     }
     cout << "Save faces: " << saveFacesIndex.size() << endl;
 
     // 将这些面的点、纹理、法线保存下来
-    std::set<int> savePointIndexSet;
-    std::set<int> saveTextureIndexSet;
+    std::set<int> savePointIndex;
+    std::set<int> saveTextureIndex;
     std::map<int, int> oldPointIndex2New;
     std::map<int, int> oldTextureIndex2New;
     // std::vector<int> saveNormalsIndex;
@@ -227,64 +230,19 @@ void ObjFile::cut()
     for (int index : saveFacesIndex)
     {
         Face* face = getFace(index);
-        if (savePointIndexSet.find(face->v1) == savePointIndexSet.end())
-        {
-            savePointIndexSet.insert(face->v1);
-            oldPointIndex2New[face->v1] = static_cast<int>(savePointIndexSet.size());
-        }
-        if (savePointIndexSet.find(face->v2) == savePointIndexSet.end())
-        {
-            savePointIndexSet.insert(face->v2);
-            oldPointIndex2New[face->v2] = static_cast<int>(savePointIndexSet.size());
-        }
-        if (savePointIndexSet.find(face->v3) == savePointIndexSet.end())
-        {
-            savePointIndexSet.insert(face->v3);
-            oldPointIndex2New[face->v3] = static_cast<int>(savePointIndexSet.size());
-        }
-
-        if (saveTextureIndexSet.find(face->t1) == saveTextureIndexSet.end())
-        {
-            saveTextureIndexSet.insert(face->t1);
-            oldTextureIndex2New[face->t1] = static_cast<int>(saveTextureIndexSet.size());
-        }
-        if (saveTextureIndexSet.find(face->t2) == saveTextureIndexSet.end())
-        {
-            saveTextureIndexSet.insert(face->t2);
-            oldTextureIndex2New[face->t2] = static_cast<int>(saveTextureIndexSet.size());
-        }
-        if (saveTextureIndexSet.find(face->t3) == saveTextureIndexSet.end())
-        {
-            saveTextureIndexSet.insert(face->t3);
-            oldTextureIndex2New[face->t3] = static_cast<int>(saveTextureIndexSet.size());
-        }
+        savePointIndex.insert(face->v1);
+        savePointIndex.insert(face->v2);
+        savePointIndex.insert(face->v3);
+        saveTextureIndex.insert(face->t1);
+        saveTextureIndex.insert(face->t2);
+        saveTextureIndex.insert(face->t3);
+        // saveNormalsIndex.insert(face->n1);
+        // saveNormalsIndex.insert(face->n2);
+        // saveNormalsIndex.insert(face->n3);
     }
-    cout << "Save points: " << savePointIndexSet.size() << endl;
-    cout << "Save texture points: " << saveTextureIndexSet.size() << endl;
-
-    // 重新生成对应的面
-    std::vector<MtlFaces> saveMtlFaces;
-    int saveMtlIndex = -1;
-    for (int index : saveFacesIndex)
-    {
-        int mtlIndex = getMtlIndex(index);
-        if (mtlIndex > saveMtlIndex)
-        {
-            saveMtlIndex = mtlIndex;
-            MtlFaces facesNow;
-            facesNow.mtl = mtlIndex;
-            saveMtlFaces.push_back(facesNow);
-        }
-        Face newFace;
-        newFace.v1 = oldPointIndex2New[getFace(index)->v1];
-        newFace.v2 = oldPointIndex2New[getFace(index)->v2];
-        newFace.v3 = oldPointIndex2New[getFace(index)->v3];
-        newFace.t1 = oldTextureIndex2New[getFace(index)->t1];
-        newFace.t2 = oldTextureIndex2New[getFace(index)->t2];
-        newFace.t3 = oldTextureIndex2New[getFace(index)->t3];
-        saveMtlFaces.back().faces.push_back(newFace);
-    }
-
+    cout << "Save points: " << savePointIndex.size() << endl;
+    cout << "Save texture points: " << saveTextureIndex.size() << endl;
+    // cout << "Save normals: " << saveNormalsIndex.size() << endl;
 
     // write new obj file
     string newFilePath = fileDir + "cut.obj";
@@ -295,21 +253,40 @@ void ObjFile::cut()
         return;
     }
     file << "mtllib " << mtllib << std::endl;
-    for (int i = 0; i < savePointIndexSet.size(); i++)
+    for (int index : savePointIndex)
     {
-        file << "v " << points[i] << std::endl;
+        static int newIndex = 0;
+        file << "v " << points[index - 1] << std::endl;
+        newIndex++;
+        oldPointIndex2New[index] = newIndex;
     }
-    for (int i = 0; i < saveTextureIndexSet.size(); i++)
+    for (int index : saveTextureIndex)
     {
-        file << "vt " << texturePoints[i] << std::endl;
+        static int newIndex = 0;
+        file << "vt " << texturePoints[index - 1] << std::endl;
+        newIndex++;
+        oldTextureIndex2New[index] = newIndex;
     }
-    for (const auto& face : saveMtlFaces)
+    // 重新生成对应的面
+    std::vector<MtlFaces> saveMtlFaces;
+    int saveMtlIndex = -1;
+    for (int index : saveFacesIndex)
     {
-        file << "usemtl " << face.mtl << std::endl;
-        for (const auto& f : face.faces)
+        int mtlIndex = getMtlIndex(index);
+        if (mtlIndex > saveMtlIndex)
         {
-            file << "f " << f << std::endl;
+            saveMtlIndex = mtlIndex;
+            file << "usemtl " << saveMtlIndex << std::endl;
         }
+        Face newFace;
+        Face* oldFace = getFace(index);
+        newFace.v1 = oldPointIndex2New[oldFace->v1];
+        newFace.v2 = oldPointIndex2New[oldFace->v2];
+        newFace.v3 = oldPointIndex2New[oldFace->v3];
+        newFace.t1 = oldTextureIndex2New[oldFace->t1];
+        newFace.t2 = oldTextureIndex2New[oldFace->t2];
+        newFace.t3 = oldTextureIndex2New[oldFace->t3];
+        file << "f " << newFace << std::endl;
     }
     file.close();
     auto end = std::chrono::system_clock::now();
