@@ -25,7 +25,7 @@ Vector2 Vector2::operator-(const Vector2& other) const {
     return Vector2{x - other.x, y - other.y};
 }
 
-[[nodiscard]] float Vector2::length() const {
+float Vector2::length() const {
     return std::sqrt(x*x + y*y);
 }
 
@@ -53,7 +53,7 @@ Vector3 Vector3::operator*(const Vector3& other) const {
     return Vector3{x * other.x, y * other.y, z * other.z};
 }
 
-[[nodiscard]] float Vector3::length() const {
+float Vector3::length() const {
     return std::sqrt(x*x + y*y + z*z);
 }
 
@@ -167,12 +167,12 @@ Plane::Plane(const Vector3& pt, const Vector3& normal) : center(pt), normal(norm
     D = -normal.x * pt.x - normal.y * pt.y - normal.z * pt.z;
 }
 
-[[nodiscard]] bool Plane::checkPointSide(Vector3 p) const
+bool Plane::checkPointSide(Vector3 p) const
 {
     return (normal.x * p.x + normal.y * p.y + normal.z * p.z + D) >= 0;
 }
 
-[[nodiscard]] float Plane::distance(const Vector3& p) const {
+float Plane::distance(const Vector3& p) const {
     Vector3 v = normal * p;
     Vector3 cv = normal * center;
     return (v - cv).length();

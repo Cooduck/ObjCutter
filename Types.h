@@ -18,7 +18,7 @@ struct Vector2 {
 
     Vector2 operator-(const Vector2& other) const;
 
-    [[nodiscard]] float length() const;
+    float length() const;
 };
 
 struct Vector3 {
@@ -36,7 +36,7 @@ struct Vector3 {
 
     Vector3 operator*(const Vector3& other) const;
 
-    [[nodiscard]] float length() const;
+    float length() const;
 };
 
 struct Face {
@@ -87,9 +87,9 @@ struct Plane {
 
     Plane(const Vector3& pt, const Vector3& normal);
 
-    [[nodiscard]] bool checkPointSide(Vector3 p) const;
+    bool checkPointSide(Vector3 p) const;
 
-    [[nodiscard]] float distance(const Vector3& p) const;
+    float distance(const Vector3& p) const;
 };
 
 

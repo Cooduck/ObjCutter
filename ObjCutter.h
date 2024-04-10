@@ -38,7 +38,7 @@ public:
     bool load(const std::string& filename);
     void info();
     bool save(const std::string& filename);
-    [[nodiscard]] Vector3 getCenter() const;
+    Vector3 getCenter() const;
 
 
     // for cut
