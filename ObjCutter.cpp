@@ -119,7 +119,7 @@ bool ObjCutter::load(const std::string& filename)
 
     fclose(file);
     auto end = std::chrono::system_clock::now();
-    elapsedSeconds = end - now;
+    loadElapsedSeconds = end - now;
     return true;
 }
 
@@ -144,7 +144,7 @@ void ObjCutter::info()
         << std::endl;
 
     std::cout << "File Dir: " << fileDir << std::endl;
-    std::cout << "Load " << fileName << " in " << elapsedSeconds.count() << "s" << std::endl;
+    std::cout << "Load " << fileName << " in " << loadElapsedSeconds.count() << "s" << std::endl;
 }
 
 bool ObjCutter::save(const std::string& filename)
@@ -335,7 +335,7 @@ void ObjCutter::cut(const Plane& plane)
 
     file.close();
     auto end = std::chrono::system_clock::now();
-    std::chrono::duration<double> cutElapsedSeconds = end - now;
+    cutElapsedSeconds = end - now;
     std::cout << "Cut " << newFilePath << ": " << endl
         << "     point > " << plane.center << plane.normal << endl
         << "    cost time: " << cutElapsedSeconds.count() << "s" << std::endl;

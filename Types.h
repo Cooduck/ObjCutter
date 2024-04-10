@@ -70,8 +70,8 @@ struct ObjFaces
 
     unsigned int getNumFaces();
 
-    void push_back(const MtlFaces& mtlFace);
     void push_back(const Face& face);
+    void push_back(const MtlFaces& mtlFace);
 
     bool empty();
 

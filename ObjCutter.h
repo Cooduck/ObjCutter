@@ -27,9 +27,10 @@ private:
 
     std::string fileDir;
     std::string fileName;
-    std::chrono::duration<double> elapsedSeconds{};
+    std::chrono::duration<double> loadElapsedSeconds{};
+    std::chrono::duration<double> cutElapsedSeconds{};
 
-    // for cut
+    // for cutting speed
     std::map<unsigned int, std::set<unsigned int>> PointIndex2FaceIndex;
     std::map<unsigned int, bool> FaceIndex2IsCut;
 
@@ -38,16 +39,14 @@ public:
     bool load(const std::string& filename);
     void info();
     bool save(const std::string& filename);
-    Vector3 getCenter() const;
 
-
-    // for cut
     void cut(const Plane& plane);
     void cutFace(unsigned int faceIndex, const Plane& plane,
         // output
         std::vector<Face>& newFaces,
         std::vector<Vector3>& newPoints,
         std::vector<Vector2>& newTexturePoints);
+    Vector3 getCenter() const;
 
     // debug function
     void cmp(string& filename1, string& filename2);
