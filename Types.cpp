@@ -25,6 +25,16 @@ Vector2 Vector2::operator-(const Vector2& other) const {
     return Vector2{x - other.x, y - other.y};
 }
 
+Vector2 Vector2::operator*(float scalar) const
+{
+    return Vector2{x * scalar, y * scalar};
+}
+
+Vector2 Vector2::operator/(float scalar) const
+{
+    return Vector2{x / scalar, y / scalar};
+}
+
 float Vector2::length() const {
     return std::sqrt(x*x + y*y);
 }
@@ -55,6 +65,22 @@ Vector3 Vector3::operator*(const Vector3& other) const {
 
 float Vector3::length() const {
     return std::sqrt(x*x + y*y + z*z);
+}
+
+bool Vector3::equals(const Vector3& other) const
+{
+    return (x == other.x && y == other.y && z == other.z);
+}
+
+float Vector3::dot(const Vector3& other) const
+{
+    return x * other.x + y * other.y + z * other.z;
+}
+
+Vector3 Vector3::normalize()
+{
+    float len = length();
+    return Vector3{x / len, y / len, z / len};
 }
 
 
@@ -164,6 +190,7 @@ unsigned int ObjFaces::size()
 
 // Plane implementation
 Plane::Plane(const Vector3& pt, const Vector3& normal) : center(pt), normal(normal) {
+    this->normal = this->normal.normalize();
     D = -normal.x * pt.x - normal.y * pt.y - normal.z * pt.z;
 }
 

@@ -16,10 +16,48 @@ using std::cout;
 using std::endl;
 using std::string;
 
-ObjCutter::ObjCutter()
+ObjModel::ObjModel()
 {
     maxX = maxY = maxZ = -1e18;
     minX = minY = minZ = 1e18;
+}
+
+bool ObjModel::save(const std::string& filename)
+{
+    std::ofstream file(filename);
+    if (file.is_open())
+    {
+        auto now = std::chrono::system_clock::now();
+        file << "mtllib " << mtllib << std::endl;
+        for (const auto& point : points)
+        {
+            file << "v " << point << std::endl;
+        }
+        for (const auto& tpoint : texturePoints)
+        {
+            file << "vt " << tpoint << std::endl;
+        }
+        for (const auto& normal : normals)
+        {
+            file << "vn " << normal << std::endl;
+        }
+        file << faces;
+        file.close();
+        auto end = std::chrono::system_clock::now();
+        std::chrono::duration<double> saveElapsedSeconds = end - now;
+        std::cout << "Save " << filename << " in " << saveElapsedSeconds.count() << "s" << std::endl;
+        return true;
+    }
+    return false;
+}
+
+Vector3 ObjModel::getCenter() const
+{
+    Vector3 center{};
+    center.x = (minX + maxX) / 2;
+    center.y = (minY + maxY) / 2;
+    center.z = (minZ + maxZ) / 2;
+    return center;
 }
 
 bool ObjCutter::load(const std::string& filename)
@@ -145,44 +183,6 @@ void ObjCutter::info()
 
     std::cout << "File Dir: " << fileDir << std::endl;
     std::cout << "Load " << fileName << " in " << loadElapsedSeconds.count() << "s" << std::endl;
-}
-
-bool ObjCutter::save(const std::string& filename)
-{
-    std::ofstream file(filename);
-    if (file.is_open())
-    {
-        auto now = std::chrono::system_clock::now();
-        file << "mtllib " << mtllib << std::endl;
-        for (const auto& point : points)
-        {
-            file << "v " << point << std::endl;
-        }
-        for (const auto& tpoint : texturePoints)
-        {
-            file << "vt " << tpoint << std::endl;
-        }
-        for (const auto& normal : normals)
-        {
-            file << "vn " << normal << std::endl;
-        }
-        file << faces;
-        file.close();
-        auto end = std::chrono::system_clock::now();
-        std::chrono::duration<double> saveElapsedSeconds = end - now;
-        std::cout << "Save " << filename << " in " << saveElapsedSeconds.count() << "s" << std::endl;
-        return true;
-    }
-    return false;
-}
-
-Vector3 ObjCutter::getCenter() const
-{
-    Vector3 center{};
-    center.x = (minX + maxX) / 2;
-    center.y = (minY + maxY) / 2;
-    center.z = (minZ + maxZ) / 2;
-    return center;
 }
 
 void ObjCutter::cut(const Plane& plane)
@@ -345,33 +345,112 @@ void ObjCutter::cutFace(unsigned int faceIndex, const Plane& plane, std::vector<
     std::vector<Vector2>& newTexturePoints)
 {
     Face* face = faces.getFace(faceIndex);
-    const auto& p1 = points[face->v1 - 1];
-    const auto& p2 = points[face->v2 - 1];
-    const auto& p3 = points[face->v3 - 1];
-    const auto& t1 = texturePoints[face->t1 - 1];
-    const auto& t2 = texturePoints[face->t2 - 1];
-    const auto& t3 = texturePoints[face->t3 - 1];
+    Vector3 points[3];
+    Vector2 texturePoints[3];
+    points[0] = {points[face->v1 - 1]};
+    points[1] = {points[face->v2 - 1]};
+    points[2] = {points[face->v3 - 1]};
+    texturePoints[0] = {texturePoints[face->t1 - 1]};
+    texturePoints[1] = {texturePoints[face->t2 - 1]};
+    texturePoints[2] = {texturePoints[face->t3 - 1]};
 
-    bool p1side = plane.checkPointSide(p1);
-    bool p2side = plane.checkPointSide(p2);
-    bool p3side = plane.checkPointSide(p3);
-    if (p1side == p2side && p2side == p3side)
+    // 选出在范围内以及范围外的点
+    bool pSide[3];
+    std::vector<Vector3> pIn, pOut;
+    std::vector<Vector2> tIn, tOut;
+    for (int i = 0; i < 3; i++)
     {
-        cout << "The face is ??? " << faceIndex << endl;
+        pSide[i] = plane.checkPointSide(points[i]);
+        if (pSide[i])
+        {
+            pIn.push_back(points[i]);
+            tIn.push_back(texturePoints[i]);
+        }
+        else
+        {
+            pOut.push_back(points[i]);
+            tOut.push_back(texturePoints[i]);
+        }
     }
 
-    float d1 = plane.distance(p1);
-    if (!p1side)
-        d1 = -d1;
-    float d2 = plane.distance(p2);
-    if (!p2side)
-        d2 = -d2;
-    float d3 = plane.distance(p3);
-    if (!p3side)
-        d3 = -d3;
+    // 区别出单一点与其他两点
+    Vector3 pSingle, p1, p2;
+    Vector2 tSingle, t1, t2;
+    if (pIn.size() == 1)
+    {
+        pSingle = pIn[0];
+        p1 = pOut[0];
+        p2 = pOut[1];
+        tSingle = tIn[0];
+        t1 = tOut[0];
+        t2 = tOut[1];
+    }else
+    {
+        pSingle = pOut[0];
+        p1 = pIn[0];
+        p2 = pIn[1];
+        tSingle = tOut[0];
+        t1 = tIn[0];
+        t2 = tIn[1];
+    }
 
-    // 输出三个顶点与平面的距离
-    // cout << "Distance: " << d1 << " " << d2 << " " << d3 << endl;
+    // 区分出单一点是哪个点，在里面还是外面
+    unsigned int singleIndex = 0;
+    bool isSinglePointInside = false;
+    for (int i = 0; i < 3; i++)
+    {
+        if (points[i].equals(pSingle))
+            singleIndex = i;
+    }
+    for (auto pointIn : pIn)
+    {
+        if (pointIn.equals(pSingle))
+            isSinglePointInside = true;
+    }
+
+    // 计算单一点与其他两点的连线与平面的两个交点
+    Vector3 newPoint1, newPoint2;
+    newPoint1 = getIntersectPoint(pSingle, p1, plane);
+    newPoint2 = getIntersectPoint(pSingle, p2, plane);
+
+    // 用相似三角形计算新的纹理坐标
+    Vector2 newTexture1, newTexture2;
+    float rate = (pSingle - p1).dot(plane.normal) /
+        (newPoint1 - p1).dot(plane.normal);
+    newTexture1 = t1 + (tSingle - t1) / rate;
+    newTexture2 = t2 + (tSingle - t2) / rate;
+
+    // 判断点序,如果是第二个点是单独点，则p1,p2不为原序
+    bool isSameOrder = true;
+    if (singleIndex == 1)
+    {
+        isSameOrder = false;
+    }
+
+    /** 保存新的面, 这里分为4种情况
+     * 1. 单一点在里面，原序，则按原序保存一个三角形
+     * 2. 单一点在里面，逆序，则按逆序保存一个三角形
+     * 3. 单一点在外面，原序，则按逆序保存两个三角形
+     * 4. 单一点在外面，逆序，则按原序保存两个三角形
+     **/
+
+    if (isSinglePointInside && isSameOrder)
+    {
+        Face newFace;
+        newFace.v1 = face->v1;
+    }
+    else if (isSinglePointInside && !isSameOrder)
+    {
+
+    }
+    else if (!isSinglePointInside && isSameOrder)
+    {
+
+    }
+    else
+    {
+
+    }
 }
 
 void ObjCutter::cmp(string& filename1, string& filename2)
@@ -433,5 +512,21 @@ void ObjCutter::showTriangleAndTexture(int faceIndex)
     float texLen3 = (t1 - t3).length();
     cout << "Texture length: " << texLen1 << " " << texLen2 << " " << texLen3 << endl;
 
+}
+
+Vector3 ObjCutter::getIntersectPoint(const Vector3& p1, const Vector3& p2, const Plane& plane)
+{
+    Vector3 lineDirection = p2 - p1;
+
+    // 计算直线与平面的交点
+    float denom = plane.normal.dot(lineDirection);
+    if (std::abs(denom) > 0.0001) { // 避免除以零的情况
+        Vector3 diff = plane.center - p1;
+        float t = diff.dot(plane.normal) / denom;
+        return p1 + lineDirection * t;
+    } else {
+        std::cerr << "直线与平面平行或共线，无交点！" << std::endl;
+        return Vector3(); // 或者其他适当的处理方式
+    }
 }
 

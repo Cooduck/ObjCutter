@@ -9,6 +9,20 @@ using std::cout;
 using std::endl;
 using std::string;
 
+bool getIntersectPointTest(Plane plane, Vector3 p1, Vector3 p2, Vector3 intersectPoint)
+{
+    Vector3 ans = ObjCutter::getIntersectPoint(p1, p2, plane);
+    cout << "intersectPoint: " << intersectPoint << endl;
+    cout << "ans: " << ans << endl;
+    if (ans.equals(intersectPoint))
+    {
+        cout << "getIntersectPointTest passed." << endl;
+        return true;
+    }
+    cout << "getIntersectPointTest failed." << endl;
+    return false;
+}
+
 int main()
 {
     ObjCutter objCutter;
@@ -23,8 +37,12 @@ int main()
     }
     objCutter.info();
     Vector3 planeCenter = objCutter.getCenter();
-    Plane plane{planeCenter, Vector3{1, 1, 0.5}};
+    Plane plane{planeCenter, Vector3{0, 1, 0}};
     objCutter.cut(plane);
+
+    // auto p1 = planeCenter + Vector3{0, 1, 0};
+    // auto p2 = planeCenter - Vector3{0, 1, 0};
+    // getIntersectPointTest(plane, p1, p2, planeCenter);
 
     // objFile.save(outputPath);
     // objFile.cmp(filePath, outputPath);

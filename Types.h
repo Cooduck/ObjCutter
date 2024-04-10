@@ -18,6 +18,10 @@ struct Vector2 {
 
     Vector2 operator-(const Vector2& other) const;
 
+    Vector2 operator*(float scalar) const;
+
+    Vector2 operator/(float scalar) const;
+
     float length() const;
 };
 
@@ -37,6 +41,12 @@ struct Vector3 {
     Vector3 operator*(const Vector3& other) const;
 
     float length() const;
+
+    bool equals(const Vector3& other) const;
+
+    float dot(const Vector3& other) const;
+
+    Vector3 normalize();
 };
 
 struct Face {
@@ -91,6 +101,4 @@ struct Plane {
 
     float distance(const Vector3& p) const;
 };
-
-
 #endif //TYPES_H
