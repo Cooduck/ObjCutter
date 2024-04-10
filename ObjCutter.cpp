@@ -90,23 +90,23 @@ bool ObjCutter::load(const std::string& filename)
                 face.v1 = std::stoi(s1);
                 face.v2 = std::stoi(s2);
                 face.v3 = std::stoi(s3);
-                faces.back().faces.push_back(face);
+                faces.push_back(face);
             }
             else if (count == 1)
             {
                 sscanf(s1, "%d/%d", &face.v1, &face.t1);
                 sscanf(s2, "%d/%d", &face.v2, &face.t2);
                 sscanf(s3, "%d/%d", &face.v3, &face.t3);
-                faces.back().faces.push_back(face);
+                faces.push_back(face);
             }
             else if (count == 2)
             {
                 sscanf(s1, "%d/%d/%d", &face.v1, &face.t1, &face.n1);
                 sscanf(s2, "%d/%d/%d", &face.v2, &face.t2, &face.n2);
                 sscanf(s3, "%d/%d/%d", &face.v3, &face.t3, &face.n3);
-                faces.back().faces.push_back(face);
+                faces.push_back(face);
             }
-            unsigned long long faceCount = getFaceCount();
+            unsigned int faceCount = faces.getNumFaces();
             PointIndex2FaceIndex[face.v1].insert(faceCount);
             PointIndex2FaceIndex[face.v2].insert(faceCount);
             PointIndex2FaceIndex[face.v3].insert(faceCount);
@@ -125,19 +125,15 @@ bool ObjCutter::load(const std::string& filename)
 
 void ObjCutter::info()
 {
-    unsigned long long face_count = 0;
-    for (const auto& face : faces)
-    {
-        face_count += face.faces.size();
-    }
+    unsigned int faceCount = faces.getNumFaces();
     std::cout << "Total Lines: "
-        << points.size() + texturePoints.size() + normals.size() + faces.size() + face_count + 1
+        << points.size() + texturePoints.size() + normals.size() + faces.mtlFaces.size() + faceCount + 1
         << std::endl;
 
     std::cout << "Points: " << points.size() << std::endl;
     std::cout << "Texture Points: " << texturePoints.size() << std::endl;
     std::cout << "Normals: " << normals.size() << std::endl;
-    std::cout << "Faces: " << face_count << std::endl;
+    std::cout << "Faces: " << faceCount << std::endl;
 
     std::cout << "Min X Y Z: "
         << minX << " " << minY << " " << minZ
@@ -170,10 +166,7 @@ bool ObjCutter::save(const std::string& filename)
         {
             file << "vn " << normal << std::endl;
         }
-        for (const auto& face : faces)
-        {
-            file << face;
-        }
+        file << faces;
         file.close();
         auto end = std::chrono::system_clock::now();
         std::chrono::duration<double> saveElapsedSeconds = end - now;
@@ -211,7 +204,7 @@ void ObjCutter::cut(const Plane& plane)
                 if (FaceIndex2IsCut[index])
                     continue;
 
-                Face* face = getFace(index);
+                Face* face = faces.getFace(index);
                 const auto& p1 = points[face->v1 - 1];
                 const auto& p2 = points[face->v2 - 1];
                 const auto& p3 = points[face->v3 - 1];
@@ -228,24 +221,24 @@ void ObjCutter::cut(const Plane& plane)
                     FaceIndex2IsCut[index] = true;
                 }
             }
-            saveFacesIndex.insert(PointIndex2FaceIndex[pointIndex].begin(),
-                                  PointIndex2FaceIndex[pointIndex].end());
+            // saveFacesIndex.insert(PointIndex2FaceIndex[pointIndex].begin(),
+            //                       PointIndex2FaceIndex[pointIndex].end());
         }
     }
     cout << "Save faces: " << saveFacesIndex.size() << endl;
 
     // 将这些面的点、纹理、法线保存下来
-    std::set<int> savePointIndex;
-    std::set<int> saveTextureIndex;
-    std::set<int> saveNormalsIndex;
-    std::map<int, int> oldPointIndex2New;
-    std::map<int, int> oldTextureIndex2New;
-    std::map<int, int> oldNormalsIndex2New;
+    std::set<unsigned int> savePointIndex;
+    std::set<unsigned int> saveTextureIndex;
+    std::set<unsigned int> saveNormalsIndex;
+    std::map<unsigned int, unsigned int> oldPointIndex2New;
+    std::map<unsigned int, unsigned int> oldTextureIndex2New;
+    std::map<unsigned int, unsigned int> oldNormalsIndex2New;
 
     // 保存点、纹理、法线并创建映射
     for (int index : saveFacesIndex)
     {
-        Face* face = getFace(index);
+        Face* face = faces.getFace(index);
         savePointIndex.insert(face->v1);
         savePointIndex.insert(face->v2);
         savePointIndex.insert(face->v3);
@@ -275,40 +268,55 @@ void ObjCutter::cut(const Plane& plane)
         return;
     }
     file << "mtllib " << mtllib << std::endl;
-    for (int index : savePointIndex)
+
+    // save points
+    static unsigned int newPointIndex = 0;
+    for (unsigned int index : savePointIndex)
     {
-        static int newIndex = 0;
         file << "v " << points[index - 1] << std::endl;
-        newIndex++;
-        oldPointIndex2New[index] = newIndex;
+        newPointIndex++;
+        oldPointIndex2New[index] = newPointIndex;
     }
-    for (int index : saveTextureIndex)
+    for (auto point : edgePoints)
     {
-        static int newIndex = 0;
-        file << "vt " << texturePoints[index - 1] << std::endl;
-        newIndex++;
-        oldTextureIndex2New[index] = newIndex;
+        file << "v " << point << std::endl;
     }
-    for (int index : saveNormalsIndex)
+
+    // save texture points
+    static unsigned int newTextureIndex = 0;
+    for (unsigned int index : saveTextureIndex)
+    {
+        file << "vt " << texturePoints[index - 1] << std::endl;
+        newTextureIndex++;
+        oldTextureIndex2New[index] = newTextureIndex;
+    }
+    for (auto tpoint : edgeTexturePoints)
+    {
+        file << "vt " << tpoint << std::endl;
+    }
+
+    // save normals
+    for (unsigned int index : saveNormalsIndex)
     {
         static int newIndex = 0;
         file << "vn " << normals[index - 1] << std::endl;
         newIndex++;
         oldNormalsIndex2New[index] = newIndex;
     }
+
     // 重新生成对应的面
     std::vector<MtlFaces> saveMtlFaces;
     int saveMtlIndex = -1;
-    for (int index : saveFacesIndex)
+    for (unsigned int index : saveFacesIndex)
     {
-        int mtlIndex = getMtlIndex(index);
+        int mtlIndex = faces.getMtlIndex(index);
         if (mtlIndex > saveMtlIndex)
         {
             saveMtlIndex = mtlIndex;
             file << "usemtl " << saveMtlIndex << std::endl;
         }
         Face newFace;
-        Face* oldFace = getFace(index);
+        Face* oldFace = faces.getFace(index);
         newFace.v1 = oldPointIndex2New[oldFace->v1];
         newFace.v2 = oldPointIndex2New[oldFace->v2];
         newFace.v3 = oldPointIndex2New[oldFace->v3];
@@ -320,6 +328,11 @@ void ObjCutter::cut(const Plane& plane)
         newFace.n3 = oldNormalsIndex2New[oldFace->n3];
         file << "f " << newFace << std::endl;
     }
+    for (auto face : edgeFaces)
+    {
+        file << "f " << face << std::endl;
+    }
+
     file.close();
     auto end = std::chrono::system_clock::now();
     std::chrono::duration<double> cutElapsedSeconds = end - now;
@@ -331,7 +344,7 @@ void ObjCutter::cut(const Plane& plane)
 void ObjCutter::cutFace(unsigned int faceIndex, const Plane& plane, std::vector<Face>& newFaces, std::vector<Vector3>& newPoints,
     std::vector<Vector2>& newTexturePoints)
 {
-    Face* face = getFace(faceIndex);
+    Face* face = faces.getFace(faceIndex);
     const auto& p1 = points[face->v1 - 1];
     const auto& p2 = points[face->v2 - 1];
     const auto& p3 = points[face->v3 - 1];
@@ -359,45 +372,6 @@ void ObjCutter::cutFace(unsigned int faceIndex, const Plane& plane, std::vector<
 
     // 输出三个顶点与平面的距离
     // cout << "Distance: " << d1 << " " << d2 << " " << d3 << endl;
-}
-
-
-Face* ObjCutter::getFace(unsigned long long faceIndex)
-{
-    if (faces.empty())
-        return nullptr;
-
-    int faceNum = 0;
-    while (faceNum < faces.size() && faceIndex > faces[faceNum].faces.size())
-    {
-        faceIndex -= faces[faceNum].faces.size();
-        faceNum++;
-    }
-    return &faces[faceNum].faces[faceIndex - 1];
-}
-
-unsigned long long ObjCutter::getFaceCount()
-{
-    unsigned long long face_count = 0;
-    for (const auto& face : faces)
-    {
-        face_count += face.faces.size();
-    }
-    return face_count;
-}
-
-int ObjCutter::getMtlIndex(int faceIndex)
-{
-    if (faces.size() == 0)
-        return -1;
-
-    int faceNum = 0;
-    while (faceNum < faces.size() && faceIndex >= faces[faceNum].faces.size())
-    {
-        faceIndex -= faces[faceNum].faces.size();
-        faceNum++;
-    }
-    return faces[faceNum].mtl;
 }
 
 void ObjCutter::cmp(string& filename1, string& filename2)
@@ -433,7 +407,7 @@ void ObjCutter::cmp(string& filename1, string& filename2)
 
 void ObjCutter::showTriangleAndTexture(int faceIndex)
 {
-    Face* face = getFace(faceIndex);
+    Face* face = faces.getFace(faceIndex);
     const auto& p1 = points[face->v1 - 1];
     const auto& p2 = points[face->v2 - 1];
     const auto& p3 = points[face->v3 - 1];

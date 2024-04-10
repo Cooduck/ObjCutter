@@ -4,7 +4,6 @@
 
 #include "Const.h"
 #include "ObjCutter.h"
-#include "Types.h"
 
 using std::cout;
 using std::endl;
@@ -24,7 +23,7 @@ int main()
     }
     objCutter.info();
     Vector3 planeCenter = objCutter.getCenter();
-    Plane plane{planeCenter, Vector3{0, 1, 0}};
+    Plane plane{planeCenter, Vector3{1, 1, 0.5}};
     objCutter.cut(plane);
 
     // objFile.save(outputPath);

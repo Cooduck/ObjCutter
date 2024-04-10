@@ -86,6 +86,81 @@ std::ostream& operator<<(std::ostream& os, const MtlFaces& obj) {
     return os;
 }
 
+std::ostream& operator<<(std::ostream& os, const ObjFaces& obj)
+{
+    for (const auto& mtlFace : obj.mtlFaces)
+    {
+        os << mtlFace << std::endl;
+    }
+    return os;
+}
+
+
+MtlFaces& ObjFaces::operator[](unsigned int mtlIndex)
+{
+    return mtlFaces[mtlIndex];
+}
+
+Face* ObjFaces::getFace(unsigned int faceIndex)
+{
+    if (mtlFaces.empty())
+        return nullptr;
+
+    int faceNum = 0;
+    while (faceNum < mtlFaces.size() && faceIndex > mtlFaces[faceNum].faces.size())
+    {
+        faceIndex -= mtlFaces[faceNum].faces.size();
+        faceNum++;
+    }
+    return &mtlFaces[faceNum].faces[faceIndex - 1];
+}
+
+unsigned int ObjFaces::getMtlIndex(unsigned int faceIndex)
+{
+    if (mtlFaces.empty())
+        return 0;
+
+
+    unsigned int faceNum = 0;
+    while (faceNum < mtlFaces.size() && faceIndex > mtlFaces[faceNum].faces.size())
+    {
+        faceIndex -= mtlFaces[faceNum].faces.size();
+        faceNum++;
+    }
+    return faceNum;
+}
+
+unsigned int ObjFaces::getNumFaces()
+{
+    return numFaces;
+}
+
+void ObjFaces::push_back(const Face& face)
+{
+    mtlFaces.back().faces.push_back(face);
+    numFaces++;
+}
+
+void ObjFaces::push_back(const MtlFaces& mtlFace)
+{
+    mtlFaces.push_back(mtlFace);
+    numFaces += mtlFace.faces.size();
+}
+
+bool ObjFaces::empty()
+{
+    return mtlFaces.empty();
+}
+
+MtlFaces& ObjFaces::back()
+{
+    return mtlFaces.back();
+}
+
+unsigned int ObjFaces::size()
+{
+    return mtlFaces.size();
+}
 
 // Plane implementation
 Plane::Plane(const Vector3& pt, const Vector3& normal) : center(pt), normal(normal) {

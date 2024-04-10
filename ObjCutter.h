@@ -20,7 +20,7 @@ private:
     std::vector<Vector3> points;
     std::vector<Vector2> texturePoints;
     std::vector<Vector3> normals;
-    std::vector<MtlFaces> faces;
+    ObjFaces faces;
 
     float maxX, maxY, maxZ;
     float minX, minY, minZ;
@@ -43,9 +43,6 @@ public:
 
     // for cut
     void cut(const Plane& plane);
-    Face* getFace(unsigned long long  faceIndex);
-    unsigned long long getFaceCount();
-    int getMtlIndex(int faceIndex);
     void cutFace(unsigned int faceIndex, const Plane& plane,
         // output
         std::vector<Face>& newFaces,

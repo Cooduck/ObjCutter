@@ -54,6 +54,32 @@ struct MtlFaces {
     friend std::ostream& operator<<(std::ostream& os, const MtlFaces& obj);
 };
 
+struct ObjFaces
+{
+    std::vector<MtlFaces> mtlFaces;
+    unsigned int numFaces{0};
+
+    friend std::ostream& operator<<(std::ostream& os, const ObjFaces& obj);
+
+    // []
+    MtlFaces& operator[](unsigned int mtlIndex);
+
+    Face* getFace(unsigned int faceIndex);
+
+    unsigned int getMtlIndex(unsigned int faceIndex);
+
+    unsigned int getNumFaces();
+
+    void push_back(const MtlFaces& mtlFace);
+    void push_back(const Face& face);
+
+    bool empty();
+
+    MtlFaces& back();
+
+    unsigned int size();
+};
+
 struct Plane {
     Vector3 center;
     Vector3 normal;
