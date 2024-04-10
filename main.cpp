@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <unordered_map>
 
 #include "Const.h"
 #include "ObjCutter.h"

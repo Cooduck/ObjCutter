@@ -43,6 +43,15 @@ float Vector2::length() const {
 // Vector3 implementation
 Vector3::Vector3(float x_val, float y_val, float z_val) : x(x_val), y(y_val), z(z_val) {}
 
+bool operator<(const Vector2& lhs, const Vector2& rhs)
+{
+    if (lhs.x < rhs.x)
+        return true;
+    if (rhs.x < lhs.x)
+        return false;
+    return lhs.y < rhs.y;
+}
+
 std::ostream& operator<<(std::ostream& os, const Vector3& obj) {
     return os << obj.x << " " << obj.y << " " << obj.z;
 }
@@ -61,6 +70,19 @@ Vector3 Vector3::operator*(float scalar) const {
 
 Vector3 Vector3::operator*(const Vector3& other) const {
     return Vector3{x * other.x, y * other.y, z * other.z};
+}
+
+bool operator<(const Vector3& lhs, const Vector3& rhs)
+{
+    if (lhs.x < rhs.x)
+        return true;
+    if (rhs.x < lhs.x)
+        return false;
+    if (lhs.y < rhs.y)
+        return true;
+    if (rhs.y < lhs.y)
+        return false;
+    return lhs.z < rhs.z;
 }
 
 float Vector3::length() const {
@@ -82,7 +104,6 @@ Vector3 Vector3::normalize()
     float len = length();
     return Vector3{x / len, y / len, z / len};
 }
-
 
 // Face implementation
 std::ostream& operator<<(std::ostream& os, const Face& obj) {

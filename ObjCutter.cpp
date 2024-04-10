@@ -46,6 +46,10 @@ bool ObjModel::save(const std::string& filename)
         auto end = std::chrono::system_clock::now();
         std::chrono::duration<double> saveElapsedSeconds = end - now;
         std::cout << "Save " << filename << " in " << saveElapsedSeconds.count() << "s" << std::endl;
+        std::cout << "Total " << points.size() << " points, "
+                  << texturePoints.size() << " texture points, "
+                  << normals.size() << " normals, "
+                  << faces.getNumFaces() << " faces." << std::endl;
         return true;
     }
     return false;
@@ -58,6 +62,41 @@ Vector3 ObjModel::getCenter() const
     center.y = (minY + maxY) / 2;
     center.z = (minZ + maxZ) / 2;
     return center;
+}
+
+void ObjModel::setMtllib(const std::string& mtllib)
+{
+    this->mtllib = mtllib;
+}
+
+unsigned int ObjModel::addPoint(const Vector3& point)
+{
+    points.push_back(point);
+    return points.size();
+}
+
+unsigned int ObjModel::addTexturePoint(const Vector2& texturePoint)
+{
+    texturePoints.push_back(texturePoint);
+    return texturePoints.size();
+}
+
+unsigned int ObjModel::addNormal(const Vector3& normal)
+{
+    normals.push_back(normal);
+    return normals.size();
+}
+
+void ObjModel::addMtl(int mtlNum)
+{
+    MtlFaces facesNow;
+    facesNow.mtl = mtlNum;
+    faces.push_back(facesNow);
+}
+
+void ObjModel::addFullFace(Face face)
+{
+    faces.push_back(face);
 }
 
 bool ObjCutter::load(const std::string& filename)
@@ -187,270 +226,281 @@ void ObjCutter::info()
 
 void ObjCutter::cut(const Plane& plane)
 {
-    auto now = std::chrono::system_clock::now();
-    // 收集符合条件的点所在的面
-    float midX = (minX + maxX) / 2;
-    std::set<unsigned int> saveFacesIndex;
-    std::vector<Face> edgeFaces;
-    std::vector<Vector3> edgePoints;
-    std::vector<Vector2> edgeTexturePoints;
-    for (int i = 0; i < points.size(); i++)
+    auto begin = std::chrono::system_clock::now();
+
+    ObjModel cuttedModel;
+    cuttedModel.setMtllib(mtllib);
+
+    // mapping points, texture points and normals to new index
+    std::map<Vector3, int> pointMap;
+    std::map<Vector2, int> textureMap;
+    std::map<Vector3, int> normalMap;
+    auto addPoint = [&](const Vector3& point) -> int
     {
-        if (plane.checkPointSide(points[i]))
+        static int index = 0;
+        auto it = pointMap.find(point);
+        if (it == pointMap.end())
         {
-            int pointIndex = i + 1;
-            for (unsigned int index : PointIndex2FaceIndex[pointIndex])
+            pointMap[point] = ++index;
+            return index;
+        }
+        return it->second;
+    };
+    auto addTexturePoint = [&](const Vector2& texturePoint) -> int
+    {
+        static int index = 0;
+        auto it = textureMap.find(texturePoint);
+        if (it == textureMap.end())
+        {
+            textureMap[texturePoint] = ++index;
+            return index;
+        }
+        return it->second;
+    };
+    auto addNormal = [&](const Vector3& normal) -> int
+    {
+        static int index = 0;
+        auto it = normalMap.find(normal);
+        if (it == normalMap.end())
+        {
+            normalMap[normal] = ++index;
+            return index;
+        }
+        return it->second;
+    };
+
+    // collecting faces
+    for (const auto& mtlFace : faces.mtlFaces)
+    {
+        MtlFaces cuttingMtlFace;
+        cuttingMtlFace.mtl = mtlFace.mtl;
+        cuttedModel.addMtl(mtlFace.mtl);
+
+        for (auto face : mtlFace.faces)
+        {
+            std::vector<Vector3> pointsInside;
+            const auto& p1 = points[face.v1 - 1];
+            const auto& p2 = points[face.v2 - 1];
+            const auto& p3 = points[face.v3 - 1];
+            int pointInsideCounter = 0;
+            if (plane.checkPointSide(p1))
             {
-                if (FaceIndex2IsCut[index])
-                    continue;
-
-                Face* face = faces.getFace(index);
-                const auto& p1 = points[face->v1 - 1];
-                const auto& p2 = points[face->v2 - 1];
-                const auto& p3 = points[face->v3 - 1];
-                if (plane.checkPointSide(p1) &&
-                    plane.checkPointSide(p2) &&
-                    plane.checkPointSide(p3))
-                {
-                    saveFacesIndex.insert(index);
-                    FaceIndex2IsCut[index] = true;
-                }
-                else
-                {
-                    cutFace(index, plane, edgeFaces, edgePoints, edgeTexturePoints);
-                    FaceIndex2IsCut[index] = true;
-                }
+                pointInsideCounter++;
+                face.v1 = addPoint(p1);
+                pointsInside.push_back(p1);
             }
-            // saveFacesIndex.insert(PointIndex2FaceIndex[pointIndex].begin(),
-            //                       PointIndex2FaceIndex[pointIndex].end());
+            if (plane.checkPointSide(p2))
+            {
+                pointInsideCounter++;
+                face.v2 = addPoint(p2);
+                pointsInside.push_back(p2);
+            }
+            if (plane.checkPointSide(p3))
+            {
+                pointInsideCounter++;
+                face.v3 = addPoint(p3);
+                pointsInside.push_back(p3);
+            }
+
+            // 全部在里面的情况
+            if (pointInsideCounter == 3)
+            {
+                if (face.t1 > 0)
+                {
+                    face.t1 = addTexturePoint(texturePoints[face.t1 - 1]);
+                    face.t2 = addTexturePoint(texturePoints[face.t2 - 1]);
+                    face.t3 = addTexturePoint(texturePoints[face.t3 - 1]);
+                }
+                if (face.n1 > 0)
+                {
+                    face.n1 = addNormal(normals[face.n1 - 1]);
+                    face.n2 = addNormal(normals[face.n2 - 1]);
+                    face.n3 = addNormal(normals[face.n3 - 1]);
+                }
+                cuttedModel.addFullFace(face);
+                continue;
+            }
+
+            // 若三点都在外面，则跳过
+            if (pointInsideCounter == 0)
+            {
+                continue;
+            }
+
+            // 其它情况
+            if (pointInsideCounter == 1)
+            {
+                Vector3 newPoint1, newPoint2;
+                Vector2 newTexture1, newTexture2;
+                cutFaceOnePoint(face, plane, pointsInside[0],
+                                newPoint1, newPoint2, newTexture1, newTexture2);
+                face.v1 = addPoint(pointsInside[0]);
+                face.v2 = addPoint(newPoint1);
+                face.v3 = addPoint(newPoint2);
+                if (face.t1 > 0)
+                {
+                    face.t1 = addTexturePoint(texturePoints[face.t1 - 1]);
+                    face.t2 = addTexturePoint(newTexture1);
+                    face.t3 = addTexturePoint(newTexture2);
+                }
+                cuttedModel.addFullFace(face);
+                continue;
+            }
+
+            if (pointInsideCounter == 2)
+            {
+                // 若不为原序，则交换两个点
+                if (pointsInside[0].equals(p1) && pointsInside[1].equals(p3))
+                {
+                    Vector3 temp = pointsInside[0];
+                    pointsInside[0] = pointsInside[1];
+                    pointsInside[1] = temp;
+                }
+                Vector3 newPoint1, newPoint2;
+                Vector2 newTexture1, newTexture2;
+                cutFaceTwoPoint(face, plane, pointsInside[0], pointsInside[1],
+                                newPoint1, newPoint2, newTexture1, newTexture2);
+                face.v1 = addPoint(pointsInside[0]);
+                face.v2 = addPoint(pointsInside[1]);
+                face.v3 = addPoint(newPoint1);
+                if (face.t1 > 0)
+                {
+                    face.t1 = addTexturePoint(texturePoints[face.t1 - 1]);
+                    face.t2 = addTexturePoint(texturePoints[face.t2 - 1]);
+                    face.t3 = addTexturePoint(newTexture1);
+                }
+                cuttedModel.addFullFace(face);
+
+                face.v1 = addPoint(pointsInside[1]);
+                face.v2 = addPoint(newPoint2);
+                face.v3 = addPoint(newPoint1);
+                if (face.t1 > 0)
+                {
+                    face.t1 = addTexturePoint(texturePoints[face.t1 - 1]);
+                    face.t2 = addTexturePoint(newTexture2);
+                    face.t3 = addTexturePoint(newTexture1);
+                }
+                cuttedModel.addFullFace(face);
+                continue;
+            }
         }
     }
-    cout << "Save faces: " << saveFacesIndex.size() << endl;
 
-    // 将这些面的点、纹理、法线保存下来
-    std::set<unsigned int> savePointIndex;
-    std::set<unsigned int> saveTextureIndex;
-    std::set<unsigned int> saveNormalsIndex;
-    std::map<unsigned int, unsigned int> oldPointIndex2New;
-    std::map<unsigned int, unsigned int> oldTextureIndex2New;
-    std::map<unsigned int, unsigned int> oldNormalsIndex2New;
-
-    // 保存点、纹理、法线并创建映射
-    for (int index : saveFacesIndex)
+    for (const auto& kv : pointMap)
     {
-        Face* face = faces.getFace(index);
-        savePointIndex.insert(face->v1);
-        savePointIndex.insert(face->v2);
-        savePointIndex.insert(face->v3);
-        if (face->t1 > 0)
-        {
-            saveTextureIndex.insert(face->t1);
-            saveTextureIndex.insert(face->t2);
-            saveTextureIndex.insert(face->t3);
-        }
-        if (face->n1 > 0)
-        {
-            saveNormalsIndex.insert(face->n1);
-            saveNormalsIndex.insert(face->n2);
-            saveNormalsIndex.insert(face->n3);
-        }
+        auto point = kv.first;
+        cuttedModel.addPoint(point);
     }
-    cout << "Save points: " << savePointIndex.size() << endl;
-    cout << "Save texture points: " << saveTextureIndex.size() << endl;
-    cout << "Save normals: " << saveNormalsIndex.size() << endl;
 
-    // write new obj file
+    for (const auto& kv : textureMap)
+    {
+        auto texturePoint = kv.first;
+        cuttedModel.addTexturePoint(texturePoint);
+    }
+
+    for (const auto& kv : normalMap)
+    {
+        auto normal = kv.first;
+        cuttedModel.addNormal(normal);
+    }
+
+    std::chrono::duration<double> cutElapsedSeconds = std::chrono::system_clock::now() - begin;
+    std::cout
+        << "Cut time: " << cutElapsedSeconds.count() << "s" << std::endl;
+
     string newFilePath = fileDir + "cut.obj";
-    std::ofstream file(newFilePath);
-    if (!file.is_open())
-    {
-        cout << "Failed to open file: " << newFilePath << endl;
-        return;
-    }
-    file << "mtllib " << mtllib << std::endl;
-
-    // save points
-    static unsigned int newPointIndex = 0;
-    for (unsigned int index : savePointIndex)
-    {
-        file << "v " << points[index - 1] << std::endl;
-        newPointIndex++;
-        oldPointIndex2New[index] = newPointIndex;
-    }
-    for (auto point : edgePoints)
-    {
-        file << "v " << point << std::endl;
-    }
-
-    // save texture points
-    static unsigned int newTextureIndex = 0;
-    for (unsigned int index : saveTextureIndex)
-    {
-        file << "vt " << texturePoints[index - 1] << std::endl;
-        newTextureIndex++;
-        oldTextureIndex2New[index] = newTextureIndex;
-    }
-    for (auto tpoint : edgeTexturePoints)
-    {
-        file << "vt " << tpoint << std::endl;
-    }
-
-    // save normals
-    for (unsigned int index : saveNormalsIndex)
-    {
-        static int newIndex = 0;
-        file << "vn " << normals[index - 1] << std::endl;
-        newIndex++;
-        oldNormalsIndex2New[index] = newIndex;
-    }
-
-    // 重新生成对应的面
-    std::vector<MtlFaces> saveMtlFaces;
-    int saveMtlIndex = -1;
-    for (unsigned int index : saveFacesIndex)
-    {
-        int mtlIndex = faces.getMtlIndex(index);
-        if (mtlIndex > saveMtlIndex)
-        {
-            saveMtlIndex = mtlIndex;
-            file << "usemtl " << saveMtlIndex << std::endl;
-        }
-        Face newFace;
-        Face* oldFace = faces.getFace(index);
-        newFace.v1 = oldPointIndex2New[oldFace->v1];
-        newFace.v2 = oldPointIndex2New[oldFace->v2];
-        newFace.v3 = oldPointIndex2New[oldFace->v3];
-        newFace.t1 = oldTextureIndex2New[oldFace->t1];
-        newFace.t2 = oldTextureIndex2New[oldFace->t2];
-        newFace.t3 = oldTextureIndex2New[oldFace->t3];
-        newFace.n1 = oldNormalsIndex2New[oldFace->n1];
-        newFace.n2 = oldNormalsIndex2New[oldFace->n2];
-        newFace.n3 = oldNormalsIndex2New[oldFace->n3];
-        file << "f " << newFace << std::endl;
-    }
-    for (auto face : edgeFaces)
-    {
-        file << "f " << face << std::endl;
-    }
-
-    file.close();
-    auto end = std::chrono::system_clock::now();
-    cutElapsedSeconds = end - now;
-    std::cout << "Cut " << newFilePath << ": " << endl
-        << "     point > " << plane.center << plane.normal << endl
-        << "    cost time: " << cutElapsedSeconds.count() << "s" << std::endl;
+    cuttedModel.save(newFilePath);
 }
 
-void ObjCutter::cutFace(unsigned int faceIndex, const Plane& plane, std::vector<Face>& newFaces, std::vector<Vector3>& newPoints,
-    std::vector<Vector2>& newTexturePoints)
+void ObjCutter::cutFaceOnePoint(Face face, const Plane& plane, const Vector3& point, Vector3& newPoint1,
+    Vector3& newPoint2, Vector2& newTexturePoint1, Vector2& newTexturePoint2)
 {
-    Face* face = faces.getFace(faceIndex);
-    Vector3 points[3];
-    Vector2 texturePoints[3];
-    points[0] = {points[face->v1 - 1]};
-    points[1] = {points[face->v2 - 1]};
-    points[2] = {points[face->v3 - 1]};
-    texturePoints[0] = {texturePoints[face->t1 - 1]};
-    texturePoints[1] = {texturePoints[face->t2 - 1]};
-    texturePoints[2] = {texturePoints[face->t3 - 1]};
+    Vector3 localPoints[3];
+    Vector2 localTexturePoints[3];
+    localPoints[0] = points[face.v1 - 1];
+    localPoints[1] = points[face.v2 - 1];
+    localPoints[2] = points[face.v3 - 1];
+    localTexturePoints[0] = texturePoints[face.t1 - 1];
+    localTexturePoints[1] = texturePoints[face.t2 - 1];
+    localTexturePoints[2] = texturePoints[face.t3 - 1];
 
-    // 选出在范围内以及范围外的点
-    bool pSide[3];
-    std::vector<Vector3> pIn, pOut;
-    std::vector<Vector2> tIn, tOut;
-    for (int i = 0; i < 3; i++)
-    {
-        pSide[i] = plane.checkPointSide(points[i]);
-        if (pSide[i])
-        {
-            pIn.push_back(points[i]);
-            tIn.push_back(texturePoints[i]);
-        }
-        else
-        {
-            pOut.push_back(points[i]);
-            tOut.push_back(texturePoints[i]);
-        }
-    }
-
-    // 区别出单一点与其他两点
     Vector3 pSingle, p1, p2;
     Vector2 tSingle, t1, t2;
-    if (pIn.size() == 1)
-    {
-        pSingle = pIn[0];
-        p1 = pOut[0];
-        p2 = pOut[1];
-        tSingle = tIn[0];
-        t1 = tOut[0];
-        t2 = tOut[1];
-    }else
-    {
-        pSingle = pOut[0];
-        p1 = pIn[0];
-        p2 = pIn[1];
-        tSingle = tOut[0];
-        t1 = tIn[0];
-        t2 = tIn[1];
-    }
-
-    // 区分出单一点是哪个点，在里面还是外面
-    unsigned int singleIndex = 0;
-    bool isSinglePointInside = false;
+    pSingle = point;
     for (int i = 0; i < 3; i++)
     {
-        if (points[i].equals(pSingle))
-            singleIndex = i;
-    }
-    for (auto pointIn : pIn)
-    {
-        if (pointIn.equals(pSingle))
-            isSinglePointInside = true;
+        if (localPoints[i].equals(pSingle))
+        {
+            tSingle = localTexturePoints[i];
+            if (i == 1)
+            {
+                p1 = localPoints[(i + 2) % 3];
+                p2 = localPoints[(i + 1) % 3];
+                t1 = localTexturePoints[(i + 2) % 3];
+                t2 = localTexturePoints[(i + 1) % 3];
+            }
+            else
+            {
+                p1 = localPoints[(i + 1) % 3];
+                p2 = localPoints[(i + 2) % 3];
+                t1 = localTexturePoints[(i + 1) % 3];
+                t2 = localTexturePoints[(i + 2) % 3];
+            }
+            break;
+        }
     }
 
     // 计算单一点与其他两点的连线与平面的两个交点
-    Vector3 newPoint1, newPoint2;
     newPoint1 = getIntersectPoint(pSingle, p1, plane);
     newPoint2 = getIntersectPoint(pSingle, p2, plane);
 
     // 用相似三角形计算新的纹理坐标
-    Vector2 newTexture1, newTexture2;
     float rate = (pSingle - p1).dot(plane.normal) /
         (newPoint1 - p1).dot(plane.normal);
-    newTexture1 = t1 + (tSingle - t1) / rate;
-    newTexture2 = t2 + (tSingle - t2) / rate;
+    newTexturePoint1 = t1 + (tSingle - t1) / rate;
+    newTexturePoint2 = t2 + (tSingle - t2) / rate;
+}
 
-    // 判断点序,如果是第二个点是单独点，则p1,p2不为原序
-    bool isSameOrder = true;
-    if (singleIndex == 1)
+void ObjCutter::cutFaceTwoPoint(Face face, const Plane& plane, const Vector3& point1, const Vector3& point2,
+    Vector3& newPoint1, Vector3& newPoint2, Vector2& newTexturePoint1, Vector2& newTexturePoint2)
+{
+    Vector3 localPoints[3];
+    Vector2 localTexturePoints[3];
+    localPoints[0] = points[face.v1 - 1];
+    localPoints[1] = points[face.v2 - 1];
+    localPoints[2] = points[face.v3 - 1];
+    localTexturePoints[0] = texturePoints[face.t1 - 1];
+    localTexturePoints[1] = texturePoints[face.t2 - 1];
+    localTexturePoints[2] = texturePoints[face.t3 - 1];
+
+    Vector3 pSingle;
+    Vector2 tSingle, t1, t2;
+    for (int i = 0; i < 3; i++)
     {
-        isSameOrder = false;
+        if (localPoints[i].equals(point1))
+        {
+            t1 = localTexturePoints[i];
+        }
+        else if (localPoints[i].equals(point2))
+        {
+            t2 = localTexturePoints[i];
+        }
+        else
+        {
+            pSingle = localPoints[i];
+            tSingle = localTexturePoints[i];
+        }
     }
 
-    /** 保存新的面, 这里分为4种情况
-     * 1. 单一点在里面，原序，则按原序保存一个三角形
-     * 2. 单一点在里面，逆序，则按逆序保存一个三角形
-     * 3. 单一点在外面，原序，则按逆序保存两个三角形
-     * 4. 单一点在外面，逆序，则按原序保存两个三角形
-     **/
+    // 计算单一点与其他两点的连线与平面的两个交点
+    newPoint1 = getIntersectPoint(pSingle, point1, plane);
+    newPoint2 = getIntersectPoint(pSingle, point2, plane);
 
-    if (isSinglePointInside && isSameOrder)
-    {
-        Face newFace;
-        newFace.v1 = face->v1;
-    }
-    else if (isSinglePointInside && !isSameOrder)
-    {
-
-    }
-    else if (!isSinglePointInside && isSameOrder)
-    {
-
-    }
-    else
-    {
-
-    }
+    // 用相似三角形计算新的纹理坐标
+    float rate = (pSingle - point1).dot(plane.normal) /
+        (newPoint1 - point2).dot(plane.normal);
+    newTexturePoint1 = t1 + (tSingle - t1) / rate;
+    newTexturePoint2 = t2 + (tSingle - t2) / rate;
 }
 
 void ObjCutter::cmp(string& filename1, string& filename2)
