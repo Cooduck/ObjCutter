@@ -68,7 +68,7 @@ struct ObjFaces
 
     unsigned int getMtlIndex(unsigned int faceIndex);
 
-    unsigned int getNumFaces();
+    unsigned int getNumFaces() const;
 
     void push_back(const Face& face);
     void push_back(const MtlFaces& mtlFace);

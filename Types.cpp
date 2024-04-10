@@ -130,7 +130,7 @@ unsigned int ObjFaces::getMtlIndex(unsigned int faceIndex)
     return faceNum;
 }
 
-unsigned int ObjFaces::getNumFaces()
+unsigned int ObjFaces::getNumFaces() const
 {
     return numFaces;
 }
