@@ -286,25 +286,25 @@ void ObjCutter::cut(const Plane& plane)
             if (plane.checkPointSide(p1))
             {
                 pointInsideCounter++;
-                face.v1 = addPoint(p1);
                 pointsInside.push_back(p1);
             }
             if (plane.checkPointSide(p2))
             {
                 pointInsideCounter++;
-                face.v2 = addPoint(p2);
                 pointsInside.push_back(p2);
             }
             if (plane.checkPointSide(p3))
             {
                 pointInsideCounter++;
-                face.v3 = addPoint(p3);
                 pointsInside.push_back(p3);
             }
 
             // 全部在里面的情况
             if (pointInsideCounter == 3)
             {
+                face.v1 = addPoint(p1);
+                face.v2 = addPoint(p2);
+                face.v3 = addPoint(p3);
                 if (face.t1 > 0)
                 {
                     face.t1 = addTexturePoint(texturePoints[face.t1 - 1]);
@@ -326,6 +326,8 @@ void ObjCutter::cut(const Plane& plane)
             {
                 continue;
             }
+
+            continue;
 
             // 其它情况
             if (pointInsideCounter == 1)
@@ -391,22 +393,25 @@ void ObjCutter::cut(const Plane& plane)
         auto point = kv.first;
         cuttedModel.addPoint(point);
     }
+    pointMap.clear();
 
     for (const auto& kv : textureMap)
     {
         auto texturePoint = kv.first;
         cuttedModel.addTexturePoint(texturePoint);
     }
+    textureMap.clear();
 
     for (const auto& kv : normalMap)
     {
         auto normal = kv.first;
         cuttedModel.addNormal(normal);
     }
+    normalMap.clear();
 
     std::chrono::duration<double> cutElapsedSeconds = std::chrono::system_clock::now() - begin;
-    std::cout
-        << "Cut time: " << cutElapsedSeconds.count() << "s" << std::endl;
+    std::cout << "Cut time: " << cutElapsedSeconds.count() << "s" << std::endl;
+    std::cout << "Plant: " << plane.center << " " << plane.normal << std::endl;
 
     string newFilePath = fileDir + "cut.obj";
     cuttedModel.save(newFilePath);

@@ -28,7 +28,8 @@ int main()
 {
     ObjCutter objCutter;
     string filePath = FILE_PATH;
-    string outputPath = string(filePath, 0, filePath.find_last_of('/')) + "/output.obj";
+    string file1Path = string(filePath, 0, filePath.find_last_of('/')) + "/master_cut.obj";
+    string file2tPath = string(filePath, 0, filePath.find_last_of('/')) + "/test_cut.obj";
 
     bool success = objCutter.load(filePath);
     if (!success)
@@ -46,6 +47,6 @@ int main()
     // getIntersectPointTest(plane, p1, p2, planeCenter);
 
     // objFile.save(outputPath);
-    // objFile.cmp(filePath, outputPath);
+    // objCutter.cmp(file1Path, file2tPath);
     return 0;
 }
