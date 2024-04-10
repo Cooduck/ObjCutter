@@ -137,7 +137,7 @@ std::ostream& operator<<(std::ostream& os, const ObjFaces& obj)
 {
     for (const auto& mtlFace : obj.mtlFaces)
     {
-        os << mtlFace << std::endl;
+        os << mtlFace;
     }
     return os;
 }

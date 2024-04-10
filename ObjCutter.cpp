@@ -87,6 +87,31 @@ unsigned int ObjModel::addNormal(const Vector3& normal)
     return normals.size();
 }
 
+void ObjModel::setPoint(int index, const Vector3& point)
+{
+    points[index - 1] = point;
+}
+
+void ObjModel::setTexturePoint(int index, const Vector2& texturePoint)
+{
+    texturePoints[index - 1] = texturePoint;
+}
+
+void ObjModel::setNormal(int index, const Vector3& normal)
+{
+    normals[index - 1] = normal;
+}
+
+void ObjModel::iniitSpaces(int numPoints, int numTexturePoints, int numNormals)
+{
+    points.reserve(numPoints);
+    points.resize(numPoints);
+    texturePoints.reserve(numTexturePoints);
+    texturePoints.resize(numTexturePoints);
+    normals.reserve(numNormals);
+    normals.resize(numNormals);
+}
+
 void ObjModel::addMtl(int mtlNum)
 {
     MtlFaces facesNow;
@@ -327,8 +352,6 @@ void ObjCutter::cut(const Plane& plane)
                 continue;
             }
 
-            continue;
-
             // 其它情况
             if (pointInsideCounter == 1)
             {
@@ -388,24 +411,28 @@ void ObjCutter::cut(const Plane& plane)
         }
     }
 
+    cuttedModel.iniitSpaces(pointMap.size(), textureMap.size(), normalMap.size());
     for (const auto& kv : pointMap)
     {
         auto point = kv.first;
-        cuttedModel.addPoint(point);
+        auto index = kv.second;
+        cuttedModel.setPoint(index, point);
     }
     pointMap.clear();
 
     for (const auto& kv : textureMap)
     {
         auto texturePoint = kv.first;
-        cuttedModel.addTexturePoint(texturePoint);
+        auto index = kv.second;
+        cuttedModel.setTexturePoint(index, texturePoint);
     }
     textureMap.clear();
 
     for (const auto& kv : normalMap)
     {
         auto normal = kv.first;
-        cuttedModel.addNormal(normal);
+        auto index = kv.second;
+        cuttedModel.setNormal(index, normal);
     }
     normalMap.clear();
 

@@ -28,7 +28,7 @@ int main()
 {
     ObjCutter objCutter;
     string filePath = FILE_PATH;
-    string file1Path = string(filePath, 0, filePath.find_last_of('/')) + "/master_cut.obj";
+    string file1Path = string(filePath, 0, filePath.find_last_of('/')) + "/test_save.obj";
     string file2tPath = string(filePath, 0, filePath.find_last_of('/')) + "/test_cut.obj";
 
     bool success = objCutter.load(filePath);
@@ -38,8 +38,9 @@ int main()
         return 1;
     }
     objCutter.info();
+    // objCutter.save(file1Path);
     Vector3 planeCenter = objCutter.getCenter();
-    Plane plane{planeCenter, Vector3{0, 1, 0}};
+    Plane plane{planeCenter, Vector3{0, -1, 0}};
     objCutter.cut(plane);
 
     // auto p1 = planeCenter + Vector3{0, 1, 0};
