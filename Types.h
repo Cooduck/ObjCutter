@@ -75,12 +75,7 @@ struct ObjFaces
 
     friend std::ostream& operator<<(std::ostream& os, const ObjFaces& obj);
 
-    // []
     MtlFaces& operator[](unsigned int mtlIndex);
-
-    Face* getFace(unsigned int faceIndex);
-
-    unsigned int getMtlIndex(unsigned int faceIndex);
 
     unsigned int getNumFaces() const;
 

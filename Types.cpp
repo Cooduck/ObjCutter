@@ -148,35 +148,6 @@ MtlFaces& ObjFaces::operator[](unsigned int mtlIndex)
     return mtlFaces[mtlIndex];
 }
 
-Face* ObjFaces::getFace(unsigned int faceIndex)
-{
-    if (mtlFaces.empty())
-        return nullptr;
-
-    int faceNum = 0;
-    while (faceNum < mtlFaces.size() && faceIndex > mtlFaces[faceNum].faces.size())
-    {
-        faceIndex -= mtlFaces[faceNum].faces.size();
-        faceNum++;
-    }
-    return &mtlFaces[faceNum].faces[faceIndex - 1];
-}
-
-unsigned int ObjFaces::getMtlIndex(unsigned int faceIndex)
-{
-    if (mtlFaces.empty())
-        return 0;
-
-
-    unsigned int faceNum = 0;
-    while (faceNum < mtlFaces.size() && faceIndex > mtlFaces[faceNum].faces.size())
-    {
-        faceIndex -= mtlFaces[faceNum].faces.size();
-        faceNum++;
-    }
-    return faceNum;
-}
-
 unsigned int ObjFaces::getNumFaces() const
 {
     return numFaces;

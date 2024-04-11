@@ -38,7 +38,6 @@ int main()
         return 1;
     }
     objCutter.info();
-    // objCutter.save(file1Path);
     Vector3 planeCenter = objCutter.getCenter();
     Plane plane{planeCenter, Vector3{0, -1, 0}};
     objCutter.cut(plane);

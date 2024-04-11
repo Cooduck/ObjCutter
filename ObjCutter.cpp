@@ -16,12 +16,6 @@ using std::cout;
 using std::endl;
 using std::string;
 
-ObjModel::ObjModel()
-{
-    maxX = maxY = maxZ = -1e18;
-    minX = minY = minZ = 1e18;
-}
-
 bool ObjModel::save(const std::string& filename)
 {
     std::ofstream file(filename);
@@ -69,24 +63,6 @@ void ObjModel::setMtllib(const std::string& mtllib)
     this->mtllib = mtllib;
 }
 
-unsigned int ObjModel::addPoint(const Vector3& point)
-{
-    points.push_back(point);
-    return points.size();
-}
-
-unsigned int ObjModel::addTexturePoint(const Vector2& texturePoint)
-{
-    texturePoints.push_back(texturePoint);
-    return texturePoints.size();
-}
-
-unsigned int ObjModel::addNormal(const Vector3& normal)
-{
-    normals.push_back(normal);
-    return normals.size();
-}
-
 void ObjModel::setPoint(int index, const Vector3& point)
 {
     points[index - 1] = point;
@@ -119,12 +95,12 @@ void ObjModel::addMtl(int mtlNum)
     faces.push_back(facesNow);
 }
 
-void ObjModel::addFullFace(Face face)
+void ObjModel::addFace(Face face)
 {
     faces.push_back(face);
 }
 
-bool ObjCutter::load(const std::string& filename)
+bool ObjModel::load(const std::string& filename)
 {
     fileDir = filename.substr(0, filename.find_last_of("/") + 1);
     fileName = filename.substr(filename.find_last_of("/") + 1);
@@ -208,10 +184,6 @@ bool ObjCutter::load(const std::string& filename)
                 sscanf(s3, "%d/%d/%d", &face.v3, &face.t3, &face.n3);
                 faces.push_back(face);
             }
-            unsigned int faceCount = faces.getNumFaces();
-            PointIndex2FaceIndex[face.v1].insert(faceCount);
-            PointIndex2FaceIndex[face.v2].insert(faceCount);
-            PointIndex2FaceIndex[face.v3].insert(faceCount);
         }
         else
         {
@@ -225,7 +197,7 @@ bool ObjCutter::load(const std::string& filename)
     return true;
 }
 
-void ObjCutter::info()
+void ObjModel::info()
 {
     unsigned int faceCount = faces.getNumFaces();
     std::cout << "Total Lines: "
@@ -249,50 +221,48 @@ void ObjCutter::info()
     std::cout << "Load " << fileName << " in " << loadElapsedSeconds.count() << "s" << std::endl;
 }
 
+int ObjCutter::addPoint(const Vector3& point)
+{
+    static int index = 0;
+    auto it = pointMap.find(point);
+    if (it == pointMap.end())
+    {
+        pointMap[point] = ++index;
+        return index;
+    }
+    return it->second;
+}
+
+int ObjCutter::addTexturePoint(const Vector2& texturePoint)
+{
+    static int index = 0;
+    auto it = textureMap.find(texturePoint);
+    if (it == textureMap.end())
+    {
+        textureMap[texturePoint] = ++index;
+        return index;
+    }
+    return it->second;
+}
+
+int ObjCutter::addNormal(const Vector3& normal)
+{
+    static int index = 0;
+    auto it = normalMap.find(normal);
+    if (it == normalMap.end())
+    {
+        normalMap[normal] = ++index;
+        return index;
+    }
+    return it->second;
+}
+
 void ObjCutter::cut(const Plane& plane)
 {
     auto begin = std::chrono::system_clock::now();
 
     ObjModel cuttedModel;
     cuttedModel.setMtllib(mtllib);
-
-    // mapping points, texture points and normals to new index
-    std::map<Vector3, int> pointMap;
-    std::map<Vector2, int> textureMap;
-    std::map<Vector3, int> normalMap;
-    auto addPoint = [&](const Vector3& point) -> int
-    {
-        static int index = 0;
-        auto it = pointMap.find(point);
-        if (it == pointMap.end())
-        {
-            pointMap[point] = ++index;
-            return index;
-        }
-        return it->second;
-    };
-    auto addTexturePoint = [&](const Vector2& texturePoint) -> int
-    {
-        static int index = 0;
-        auto it = textureMap.find(texturePoint);
-        if (it == textureMap.end())
-        {
-            textureMap[texturePoint] = ++index;
-            return index;
-        }
-        return it->second;
-    };
-    auto addNormal = [&](const Vector3& normal) -> int
-    {
-        static int index = 0;
-        auto it = normalMap.find(normal);
-        if (it == normalMap.end())
-        {
-            normalMap[normal] = ++index;
-            return index;
-        }
-        return it->second;
-    };
 
     // collecting faces
     for (const auto& mtlFace : faces.mtlFaces)
@@ -342,7 +312,7 @@ void ObjCutter::cut(const Plane& plane)
                     face.n2 = addNormal(normals[face.n2 - 1]);
                     face.n3 = addNormal(normals[face.n3 - 1]);
                 }
-                cuttedModel.addFullFace(face);
+                cuttedModel.addFace(face);
                 continue;
             }
 
@@ -368,7 +338,7 @@ void ObjCutter::cut(const Plane& plane)
                     face.t2 = addTexturePoint(newTexture1);
                     face.t3 = addTexturePoint(newTexture2);
                 }
-                cuttedModel.addFullFace(face);
+                cuttedModel.addFace(face);
                 continue;
             }
 
@@ -394,7 +364,7 @@ void ObjCutter::cut(const Plane& plane)
                     face.t2 = addTexturePoint(texturePoints[face.t2 - 1]);
                     face.t3 = addTexturePoint(newTexture1);
                 }
-                cuttedModel.addFullFace(face);
+                cuttedModel.addFace(face);
 
                 face.v1 = addPoint(pointsInside[1]);
                 face.v2 = addPoint(newPoint2);
@@ -405,7 +375,7 @@ void ObjCutter::cut(const Plane& plane)
                     face.t2 = addTexturePoint(newTexture2);
                     face.t3 = addTexturePoint(newTexture1);
                 }
-                cuttedModel.addFullFace(face);
+                cuttedModel.addFace(face);
                 continue;
             }
         }
@@ -535,40 +505,8 @@ void ObjCutter::cutFaceTwoPoint(Face face, const Plane& plane, const Vector3& po
     newTexturePoint2 = t2 + (tSingle - t2) / rate;
 }
 
-void ObjCutter::cmp(string& filename1, string& filename2)
+void ObjCutter::showTriangleAndTexture(Face* face)
 {
-    std::ifstream file1(filename1);
-    std::ifstream file2(filename2);
-    bool isSame = true;
-    // 比较两个文件不一样的地方
-    if (file1.is_open() && file2.is_open())
-    {
-        std::string line1;
-        std::string line2;
-        int i = 0;
-        while (std::getline(file1, line1) && std::getline(file2, line2))
-        {
-            if (line1 != line2)
-            {
-                cout << "Line " << i << " is different:" << endl;
-                cout << "Line1: " << line1 << endl;
-                cout << "Line2: " << line2 << endl;
-                isSame = false;
-            }
-            i++;
-        }
-    }
-    if (isSame)
-    {
-        cout << "The two files are the same." << endl;
-    }
-    file1.close();
-    file2.close();
-}
-
-void ObjCutter::showTriangleAndTexture(int faceIndex)
-{
-    Face* face = faces.getFace(faceIndex);
     const auto& p1 = points[face->v1 - 1];
     const auto& p2 = points[face->v2 - 1];
     const auto& p3 = points[face->v3 - 1];
