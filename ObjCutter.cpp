@@ -351,31 +351,29 @@ void ObjCutter::cut(const Plane& plane)
                     pointsInside[0] = pointsInside[1];
                     pointsInside[1] = temp;
                 }
+
                 Vector3 newPoint1, newPoint2;
                 Vector2 newTexture1, newTexture2;
+                Face newFace1, newFace2;
                 cutFaceTwoPoint(face, plane, pointsInside[0], pointsInside[1],
                                 newPoint1, newPoint2, newTexture1, newTexture2);
-                face.v1 = addPoint(pointsInside[0]);
-                face.v2 = addPoint(pointsInside[1]);
-                face.v3 = addPoint(newPoint1);
+                newFace1.v1 = addPoint(pointsInside[0]);
+                newFace1.v2 = addPoint(pointsInside[1]);
+                newFace1.v3 = addPoint(newPoint1);
+                newFace2.v1 = addPoint(pointsInside[1]);
+                newFace2.v2 = addPoint(newPoint2);
+                newFace2.v3 = addPoint(newPoint1);
                 if (face.t1 > 0)
                 {
-                    face.t1 = addTexturePoint(texturePoints[face.t1 - 1]);
-                    face.t2 = addTexturePoint(texturePoints[face.t2 - 1]);
-                    face.t3 = addTexturePoint(newTexture1);
+                    newFace1.t1 = addTexturePoint(texturePoints[face.t1 - 1]);
+                    newFace1.t2 = addTexturePoint(texturePoints[face.t2 - 1]);
+                    newFace1.t3 = addTexturePoint(newTexture1);
+                    newFace2.t1 = addTexturePoint(texturePoints[face.t2 - 1]);
+                    newFace2.t2 = addTexturePoint(newTexture2);
+                    newFace2.t3 = addTexturePoint(newTexture1);
                 }
-                cuttedModel.addFace(face);
-
-                face.v1 = addPoint(pointsInside[1]);
-                face.v2 = addPoint(newPoint2);
-                face.v3 = addPoint(newPoint1);
-                if (face.t1 > 0)
-                {
-                    face.t1 = addTexturePoint(texturePoints[face.t1 - 1]);
-                    face.t2 = addTexturePoint(newTexture2);
-                    face.t3 = addTexturePoint(newTexture1);
-                }
-                cuttedModel.addFace(face);
+                cuttedModel.addFace(newFace1);
+                cuttedModel.addFace(newFace2);
                 continue;
             }
         }
