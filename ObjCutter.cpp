@@ -119,9 +119,11 @@ bool ObjModel::load(const std::string& filename)
     {
         if (strcmp(type, "mtllib") == 0)
         {
+            fgetc(file);
             char mtllibBuff[200];
             fgets(mtllibBuff, sizeof(mtllibBuff), file);
             mtllib = string(mtllibBuff);
+            mtllib.erase(mtllib.find_last_not_of('\n') + 1);
         }
         else if (strcmp(type, "v") == 0)
         {
@@ -149,10 +151,12 @@ bool ObjModel::load(const std::string& filename)
         }
         else if (strcmp(type, "usemtl") == 0)
         {
+            fgetc(file);
             char mtlBuff[200];
             fgets(mtlBuff, sizeof(mtlBuff), file);
             MtlFaces facesNow;
             facesNow.mtl = string(mtlBuff);
+            facesNow.mtl.erase(facesNow.mtl.find_last_not_of('\n') + 1);
             faces.push_back(facesNow);
         }
         else if (strcmp(type, "f") == 0)
@@ -346,12 +350,12 @@ void ObjCutter::cut(const Plane& plane)
             if (pointInsideCounter == 2)
             {
                 // 若不为原序，则交换两个点
-                if (pointsInside[0].equals(p1) && pointsInside[1].equals(p3))
-                {
-                    Vector3 temp = pointsInside[0];
-                    pointsInside[0] = pointsInside[1];
-                    pointsInside[1] = temp;
-                }
+                // if (pointsInside[0].equals(p1) && pointsInside[1].equals(p3))
+                // {
+                //     Vector3 temp = pointsInside[0];
+                //     pointsInside[0] = pointsInside[1];
+                //     pointsInside[1] = temp;
+                // }
 
                 Vector3 newPoint1, newPoint2;
                 Vector2 newTexture1, newTexture2;

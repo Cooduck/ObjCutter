@@ -28,9 +28,6 @@ int main()
 {
     ObjCutter objCutter;
     string filePath = FILE_PATH;
-    string file1Path = string(filePath, 0, filePath.find_last_of('/')) + "/test_save.obj";
-    string file2tPath = string(filePath, 0, filePath.find_last_of('/')) + "/test_cut.obj";
-
     bool success = objCutter.load(filePath);
     if (!success)
     {
