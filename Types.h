@@ -62,7 +62,7 @@ struct Face {
 };
 
 struct MtlFaces {
-    unsigned int mtl;
+    string mtl;
     std::vector<Face> faces;
 
     friend std::ostream& operator<<(std::ostream& os, const MtlFaces& obj);

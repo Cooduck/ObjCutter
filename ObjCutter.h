@@ -40,7 +40,7 @@ public:
 
     // for setting data
     void setMtllib(const std::string& mtllib);
-    void addMtl(int mtlNum);
+    void addMtl(string mtlName);
     void addFace(Face face);
     void setPoint(int index, const Vector3& point);
     void setTexturePoint(int index, const Vector2& texturePoint);

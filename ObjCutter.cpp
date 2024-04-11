@@ -63,6 +63,13 @@ void ObjModel::setMtllib(const std::string& mtllib)
     this->mtllib = mtllib;
 }
 
+void ObjModel::addMtl(string mtlName)
+{
+    MtlFaces facesNow;
+    facesNow.mtl = mtlName;
+    faces.push_back(facesNow);
+}
+
 void ObjModel::setPoint(int index, const Vector3& point)
 {
     points[index - 1] = point;
@@ -88,13 +95,6 @@ void ObjModel::iniitSpaces(int numPoints, int numTexturePoints, int numNormals)
     normals.resize(numNormals);
 }
 
-void ObjModel::addMtl(int mtlNum)
-{
-    MtlFaces facesNow;
-    facesNow.mtl = mtlNum;
-    faces.push_back(facesNow);
-}
-
 void ObjModel::addFace(Face face)
 {
     faces.push_back(face);
@@ -114,14 +114,13 @@ bool ObjModel::load(const std::string& filename)
     }
 
     cout << "Loading " << filename << "..." << endl;
-    int mtlNumNow = 0;
     char type[40];
     while (fscanf(file, "%s", type) != EOF)
     {
         if (strcmp(type, "mtllib") == 0)
         {
             char mtllibBuff[200];
-            fscanf(file, "%s", mtllibBuff);
+            fgets(mtllibBuff, sizeof(mtllibBuff), file);
             mtllib = string(mtllibBuff);
         }
         else if (strcmp(type, "v") == 0)
@@ -150,9 +149,10 @@ bool ObjModel::load(const std::string& filename)
         }
         else if (strcmp(type, "usemtl") == 0)
         {
-            fscanf(file, "%d", &mtlNumNow);
+            char mtlBuff[200];
+            fgets(mtlBuff, sizeof(mtlBuff), file);
             MtlFaces facesNow;
-            facesNow.mtl = mtlNumNow;
+            facesNow.mtl = string(mtlBuff);
             faces.push_back(facesNow);
         }
         else if (strcmp(type, "f") == 0)
@@ -187,6 +187,7 @@ bool ObjModel::load(const std::string& filename)
         }
         else
         {
+            while (fgetc(file)!= '\n');
             std::cout  << "unknown type: " << type << std::endl;
         }
     }
@@ -455,10 +456,12 @@ void ObjCutter::cutFaceOnePoint(Face face, const Plane& plane, const Vector3& po
     newPoint2 = getIntersectPoint(pSingle, p2, plane);
 
     // 用相似三角形计算新的纹理坐标
-    float rate = (pSingle - p1).dot(plane.normal) /
-        (newPoint1 - p1).dot(plane.normal);
-    newTexturePoint1 = t1 + (tSingle - t1) / rate;
-    newTexturePoint2 = t2 + (tSingle - t2) / rate;
+    float rate1 = (pSingle - p1).length() /
+        (newPoint1 - p1).length();
+    float rate2 = (pSingle - p2).length() /
+        (newPoint2 - p2).length();
+    newTexturePoint1 = t1 + (tSingle - t1) / rate1;
+    newTexturePoint2 = t2 + (tSingle - t2) / rate2;
 }
 
 void ObjCutter::cutFaceTwoPoint(Face face, const Plane& plane, const Vector3& point1, const Vector3& point2,
@@ -473,7 +476,7 @@ void ObjCutter::cutFaceTwoPoint(Face face, const Plane& plane, const Vector3& po
     localTexturePoints[1] = texturePoints[face.t2 - 1];
     localTexturePoints[2] = texturePoints[face.t3 - 1];
 
-    Vector3 pSingle;
+    Vector3 pSingle, p1{point1}, p2{point2};
     Vector2 tSingle, t1, t2;
     for (int i = 0; i < 3; i++)
     {
@@ -497,10 +500,12 @@ void ObjCutter::cutFaceTwoPoint(Face face, const Plane& plane, const Vector3& po
     newPoint2 = getIntersectPoint(pSingle, point2, plane);
 
     // 用相似三角形计算新的纹理坐标
-    float rate = (pSingle - point1).dot(plane.normal) /
-        (newPoint1 - point2).dot(plane.normal);
-    newTexturePoint1 = t1 + (tSingle - t1) / rate;
-    newTexturePoint2 = t2 + (tSingle - t2) / rate;
+    float rate1 = (pSingle - p1).length() /
+        (newPoint1 - p1).length();
+    float rate2 = (pSingle - p2).length() /
+        (newPoint2 - p2).length();
+    newTexturePoint1 = t1 + (tSingle - t1) / rate1;
+    newTexturePoint2 = t2 + (tSingle - t2) / rate2;
 }
 
 void ObjCutter::showTriangleAndTexture(Face* face)
