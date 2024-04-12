@@ -36,7 +36,7 @@ int main()
     }
     objCutter.info();
     Vector3 planeCenter = objCutter.getCenter();
-    Plane plane{planeCenter, Vector3{0, -1, 0}};
+    Plane plane{planeCenter, Vector3{0, 1, 0}};
     objCutter.cut(plane);
     return 0;
 }
