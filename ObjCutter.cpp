@@ -174,10 +174,10 @@ bool ObjModel::load(const std::string& filename)
             char *ptr = vtnAllBuff;
             for (int i = 0; i < spaceCount; i++)
             {
+                ptr += strcspn(ptr, " ") + 1;
                 int a, b, c;
                 // 用regex不断读取vtnAllBuff的数字
                 int ret= sscanf(ptr, regex.c_str(), &a, &b, &c);
-                ptr += strcspn(ptr, " ") + 1;
                 if (ret >= 1)
                     v.push_back(a);
                 if (ret >= 2)
