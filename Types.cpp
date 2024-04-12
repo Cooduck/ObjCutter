@@ -107,12 +107,6 @@ Vector3 Vector3::normalize()
 
 // Face implementation
 std::ostream& operator<<(std::ostream& os, const Face& obj) {
-    if (obj.n1 != 0)
-        return os
-            << obj.v1 << "/" << obj.t1 << "/" << obj.n1
-            << " " << obj.v2 << "/" << obj.t2 << "/" << obj.n2
-            << " " << obj.v3 << "/" << obj.t3 << "/" << obj.n3;
-
     if (obj.t1 != 0)
         return os
             << obj.v1 << "/" << obj.t1
@@ -195,6 +189,67 @@ float Plane::distance(const Vector3& p) const {
     Vector3 v = normal * p;
     Vector3 cv = normal * center;
     return (v - cv).length();
+}
+
+TriangleStatus::TriangleStatus(Vector3* triangle, const Plane& plane)
+{
+    status = 0;
+    inpartNum = 0;
+    if (plane.checkPointSide(triangle[0])) {
+        status |= 1;
+        inpartNum++;
+    }
+    if (plane.checkPointSide(triangle[1])) {
+        status |= 2;
+        inpartNum++;
+    }
+    if (plane.checkPointSide(triangle[2])) {
+        status |= 4;
+        inpartNum++;
+    }
+    singleIndex = 0;
+    if (status == 1 || ~status == 1)
+    {
+        singleIndex = 1;
+    }
+    else if (status == 2 || ~status == 2)
+    {
+        singleIndex = 2;
+    }
+    else if (status == 4 || ~status == 4)
+    {
+        singleIndex = 3;
+    }
+}
+
+bool TriangleStatus::isFull() const
+{
+    return status == 7;
+}
+
+bool TriangleStatus::isOut() const
+{
+    return status == 0;
+}
+
+bool TriangleStatus::isPart() const
+{
+    return singleIndex != 0;
+}
+
+bool TriangleStatus::isSamewise() const
+{
+    return singleIndex != 2;
+}
+
+unsigned short TriangleStatus::getSingleIndex() const
+{
+    return singleIndex;
+}
+
+unsigned short TriangleStatus::getInpartNum() const
+{
+    return inpartNum;
 }
 
 

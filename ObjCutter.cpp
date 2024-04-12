@@ -181,13 +181,6 @@ bool ObjModel::load(const std::string& filename)
                 sscanf(s3, "%d/%d", &face.v3, &face.t3);
                 faces.push_back(face);
             }
-            else if (count == 2)
-            {
-                sscanf(s1, "%d/%d/%d", &face.v1, &face.t1, &face.n1);
-                sscanf(s2, "%d/%d/%d", &face.v2, &face.t2, &face.n2);
-                sscanf(s3, "%d/%d/%d", &face.v3, &face.t3, &face.n3);
-                faces.push_back(face);
-            }
         }
         else
         {
@@ -278,112 +271,81 @@ void ObjCutter::cut(const Plane& plane)
 
         for (auto face : mtlFace.faces)
         {
-            std::vector<Vector3> pointsInside;
-            const auto& p1 = points[face.v1 - 1];
-            const auto& p2 = points[face.v2 - 1];
-            const auto& p3 = points[face.v3 - 1];
-            int pointInsideCounter = 0;
-            if (plane.checkPointSide(p1))
+            Vector3 triangle[3];
+            Vector2 texture[3];
+            auto *v = &face.v1;
+            auto *t = &face.t1;
+            for (int i = 0; i < 3; i++)
             {
-                pointInsideCounter++;
-                pointsInside.push_back(p1);
+                triangle[i] = points[*(v+i)];
+                texture[i] = texturePoints[*(t+i)];
             }
-            if (plane.checkPointSide(p2))
-            {
-                pointInsideCounter++;
-                pointsInside.push_back(p2);
-            }
-            if (plane.checkPointSide(p3))
-            {
-                pointInsideCounter++;
-                pointsInside.push_back(p3);
-            }
+            TriangleStatus status(triangle, plane);
 
             // 全部在里面的情况
-            if (pointInsideCounter == 3)
+            if (status.isFull())
             {
-                face.v1 = addPoint(p1);
-                face.v2 = addPoint(p2);
-                face.v3 = addPoint(p3);
-                if (face.t1 > 0)
+                Face newFace;
+                v = &newFace.v1;
+                t = &newFace.t1;
+                for (int i = 0; i < 3; i++)
                 {
-                    face.t1 = addTexturePoint(texturePoints[face.t1 - 1]);
-                    face.t2 = addTexturePoint(texturePoints[face.t2 - 1]);
-                    face.t3 = addTexturePoint(texturePoints[face.t3 - 1]);
+                    *(v + i) = addPoint(triangle[i]);
+                    *(t + i) = addTexturePoint(texture[i]);
                 }
-                if (face.n1 > 0)
-                {
-                    face.n1 = addNormal(normals[face.n1 - 1]);
-                    face.n2 = addNormal(normals[face.n2 - 1]);
-                    face.n3 = addNormal(normals[face.n3 - 1]);
-                }
-                cuttedModel.addFace(face);
+                cuttedModel.addFace(newFace);
                 continue;
             }
 
             // 若三点都在外面，则跳过
-            if (pointInsideCounter == 0)
+            if (status.isOut())
             {
                 continue;
             }
 
-            // 其它情况
-            if (pointInsideCounter == 1)
+            // 其它情况, 先把交点切出来
+            Vector3 newPoint1, newPoint2;
+            Vector2 newTexture1, newTexture2;
+            cutFace(face, plane, status,
+                newPoint1, newPoint2, newTexture1, newTexture2);
+
+            // 然后再看情况加三角形
+            int singleIndex = status.getSingleIndex() - 1;
+            if (status.getInpartNum() == 1)
             {
-                Vector3 newPoint1, newPoint2;
-                Vector2 newTexture1, newTexture2;
-                cutFaceOnePoint(face, plane, pointsInside[0],
-                                newPoint1, newPoint2, newTexture1, newTexture2);
-                face.v1 = addPoint(pointsInside[0]);
-                face.v2 = addPoint(newPoint1);
-                face.v3 = addPoint(newPoint2);
-                if (face.t1 > 0)
-                {
-                    face.t1 = addTexturePoint(texturePoints[face.t1 - 1]);
-                    face.t2 = addTexturePoint(newTexture1);
-                    face.t3 = addTexturePoint(newTexture2);
-                }
+                Face newFace;
+                newFace.v1 = addPoint(triangle[singleIndex]);
+                newFace.t1 = addTexturePoint(texture[singleIndex]);
+                newFace.v2 = addPoint(newPoint1);
+                newFace.v3 = addPoint(newPoint2);
+                newFace.t2 = addTexturePoint(newTexture1);
+                newFace.t3 = addTexturePoint(newTexture2);
                 cuttedModel.addFace(face);
-                continue;
             }
-
-            if (pointInsideCounter == 2)
+            else if (status.getInpartNum() == 2)
             {
-                Vector2 t1{texturePoints[face.t1 - 1]}, t2{texturePoints[face.t2 - 1]};
-                // 若不为原序，则交换两个点
-                if (pointsInside[0].equals(p1) && pointsInside[1].equals(p3))
-                {
-                    Vector3 temp = pointsInside[0];
-                    pointsInside[0] = pointsInside[1];
-                    pointsInside[1] = temp;
-                    Vector2 temp2 = t1;
-                    t1 = t2;
-                    t2 = temp2;
-                }
-
-                Vector3 newPoint1, newPoint2;
-                Vector2 newTexture1, newTexture2;
                 Face newFace1, newFace2;
-                cutFaceTwoPoint(face, plane, pointsInside[0], pointsInside[1],
-                                newPoint1, newPoint2, newTexture1, newTexture2);
-                newFace1.v1 = addPoint(pointsInside[0]);
-                newFace1.v2 = addPoint(pointsInside[1]);
+                Vector3 p1{triangle[(singleIndex + 1) % 3]},
+                        p2{triangle[(singleIndex + 2) % 3]};
+                Vector2 t1{ texture[(singleIndex + 1) % 3]},
+                        t2{ texture[(singleIndex + 2) % 3]};
+
+                newFace1.v1 = addPoint(p1);
+                newFace1.v2 = addPoint(p2);
                 newFace1.v3 = addPoint(newPoint2);
+                newFace1.t1 = addTexturePoint(t1);
+                newFace1.t2 = addTexturePoint(t2);
+                newFace1.t3 = addTexturePoint(newTexture2);
+
                 newFace2.v1 = addPoint(newPoint2);
                 newFace2.v2 = addPoint(newPoint1);
-                newFace2.v3 = addPoint(pointsInside[0]);
-                if (face.t1 > 0)
-                {
-                    newFace1.t1 = addTexturePoint(t1);
-                    newFace1.t2 = addTexturePoint(t2);
-                    newFace1.t3 = addTexturePoint(newTexture2);
-                    newFace2.t1 = addTexturePoint(newTexture2);
-                    newFace2.t2 = addTexturePoint(newTexture1);
-                    newFace2.t3 = addTexturePoint(t1);
-                }
+                newFace2.v3 = addPoint(p1);
+                newFace2.t1 = addTexturePoint(newTexture2);
+                newFace2.t2 = addTexturePoint(newTexture1);
+                newFace2.t3 = addTexturePoint(t1);
+
                 cuttedModel.addFace(newFace1);
                 cuttedModel.addFace(newFace2);
-                continue;
             }
         }
     }
@@ -421,7 +383,7 @@ void ObjCutter::cut(const Plane& plane)
     cuttedModel.save(newFilePath);
 }
 
-void ObjCutter::cutFaceOnePoint(Face face, const Plane& plane, const Vector3& point, Vector3& newPoint1,
+void ObjCutter::cutFace(Face face, const Plane& plane, const TriangleStatus& status, Vector3& newPoint1,
     Vector3& newPoint2, Vector2& newTexturePoint1, Vector2& newTexturePoint2)
 {
     Vector3 localPoints[3];
@@ -435,77 +397,17 @@ void ObjCutter::cutFaceOnePoint(Face face, const Plane& plane, const Vector3& po
 
     Vector3 pSingle, p1, p2;
     Vector2 tSingle, t1, t2;
-    pSingle = point;
-    for (int i = 0; i < 3; i++)
-    {
-        if (localPoints[i].equals(pSingle))
-        {
-            tSingle = localTexturePoints[i];
-            if (i == 1)
-            {
-                p1 = localPoints[(i + 2) % 3];
-                p2 = localPoints[(i + 1) % 3];
-                t1 = localTexturePoints[(i + 2) % 3];
-                t2 = localTexturePoints[(i + 1) % 3];
-            }
-            else
-            {
-                p1 = localPoints[(i + 1) % 3];
-                p2 = localPoints[(i + 2) % 3];
-                t1 = localTexturePoints[(i + 1) % 3];
-                t2 = localTexturePoints[(i + 2) % 3];
-            }
-            break;
-        }
-    }
+    int singleIndex = status.getSingleIndex() - 1;
+    pSingle = localPoints[singleIndex];
+    p1 = localPoints[(singleIndex + 1) % 3];
+    p2 = localPoints[(singleIndex + 2) % 3];
+    tSingle = localTexturePoints[singleIndex];
+    t1 = localTexturePoints[(singleIndex + 1) % 3];
+    t2 = localTexturePoints[(singleIndex + 2) % 3];
 
     // 计算单一点与其他两点的连线与平面的两个交点
     newPoint1 = getIntersectPoint(pSingle, p1, plane);
     newPoint2 = getIntersectPoint(pSingle, p2, plane);
-
-    // 用相似三角形计算新的纹理坐标
-    float rate1 = (pSingle - p1).length() /
-        (newPoint1 - p1).length();
-    float rate2 = (pSingle - p2).length() /
-        (newPoint2 - p2).length();
-    newTexturePoint1 = t1 + (tSingle - t1) / rate1;
-    newTexturePoint2 = t2 + (tSingle - t2) / rate2;
-}
-
-void ObjCutter::cutFaceTwoPoint(Face face, const Plane& plane, const Vector3& point1, const Vector3& point2,
-    Vector3& newPoint1, Vector3& newPoint2, Vector2& newTexturePoint1, Vector2& newTexturePoint2)
-{
-    Vector3 localPoints[3];
-    Vector2 localTexturePoints[3];
-    localPoints[0] = points[face.v1 - 1];
-    localPoints[1] = points[face.v2 - 1];
-    localPoints[2] = points[face.v3 - 1];
-    localTexturePoints[0] = texturePoints[face.t1 - 1];
-    localTexturePoints[1] = texturePoints[face.t2 - 1];
-    localTexturePoints[2] = texturePoints[face.t3 - 1];
-
-    Vector3 pSingle, p1{point1}, p2{point2};
-    Vector2 tSingle, t1, t2;
-    for (int i = 0; i < 3; i++)
-    {
-        if (localPoints[i].equals(point1))
-        {
-            t1 = localTexturePoints[i];
-        }
-        else if (localPoints[i].equals(point2))
-        {
-            t2 = localTexturePoints[i];
-        }
-        else
-        {
-            pSingle = localPoints[i];
-            tSingle = localTexturePoints[i];
-        }
-    }
-
-    // 计算单一点与其他两点的连线与平面的两个交点
-    newPoint1 = getIntersectPoint(pSingle, point1, plane);
-    newPoint2 = getIntersectPoint(pSingle, point2, plane);
 
     // 用相似三角形计算新的纹理坐标
     float rate1 = (pSingle - p1).length() /

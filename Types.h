@@ -56,7 +56,6 @@ struct Vector3 {
 struct Face {
     unsigned int v1{}, v2{}, v3{};
     unsigned int t1{}, t2{}, t3{};
-    unsigned int n1{}, n2{}, n3{};
 
     friend std::ostream& operator<<(std::ostream& os, const Face& obj);
 };
@@ -99,5 +98,20 @@ struct Plane {
     bool checkPointSide(Vector3 p) const;
 
     float distance(const Vector3& p) const;
+};
+
+struct TriangleStatus
+{
+    unsigned short status;
+    unsigned short singleIndex;
+    unsigned short inpartNum;
+
+    TriangleStatus(Vector3* triangle, const Plane& plane);
+    unsigned short getSingleIndex() const;
+    unsigned short getInpartNum() const;
+    bool isFull() const;
+    bool isOut() const;
+    bool isPart() const;
+    bool isSamewise() const;
 };
 #endif //TYPES_H

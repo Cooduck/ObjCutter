@@ -62,12 +62,7 @@ private:
 public:
     void cut(const Plane& plane);
 
-    void cutFaceOnePoint(Face face, const Plane& plane, const Vector3& point,
-        // output
-        Vector3& newPoint1, Vector3& newPoint2,
-        Vector2& newTexturePoint1, Vector2& newTexturePoint2);
-
-    void cutFaceTwoPoint(Face face, const Plane& plane, const Vector3& point1, const Vector3& point2,
+    void cutFace(Face face, const Plane& plane, const TriangleStatus& status,
         // output
         Vector3& newPoint1, Vector3& newPoint2,
         Vector2& newTexturePoint1, Vector2& newTexturePoint2);
