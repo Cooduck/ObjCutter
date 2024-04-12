@@ -107,6 +107,12 @@ Vector3 Vector3::normalize()
 
 // Face implementation
 std::ostream& operator<<(std::ostream& os, const Face& obj) {
+    if (obj.n1 != 0)
+        return os
+            << obj.v1 << "/" << obj.t1 << "/" << obj.n1
+            << " " << obj.v2 << "/" << obj.t2 << "/" << obj.n2
+            << " " << obj.v3 << "/" << obj.t3 << "/" << obj.n3;
+
     if (obj.t1 != 0)
         return os
             << obj.v1 << "/" << obj.t1
@@ -120,7 +126,8 @@ std::ostream& operator<<(std::ostream& os, const Face& obj) {
 
 // MtlFaces implementation
 std::ostream& operator<<(std::ostream& os, const MtlFaces& obj) {
-    os << "usemtl " << obj.mtl << std::endl;
+    if (!obj.mtl.empty())
+        os << "usemtl " << obj.mtl << std::endl;
     for(auto& f : obj.faces) {
         os << "f " << f << std::endl;
     }
@@ -149,6 +156,10 @@ unsigned int ObjFaces::getNumFaces() const
 
 void ObjFaces::push_back(const Face& face)
 {
+    if (mtlFaces.empty())
+    {
+        mtlFaces.emplace_back(MtlFaces{});
+    }
     mtlFaces.back().faces.push_back(face);
     numFaces++;
 }

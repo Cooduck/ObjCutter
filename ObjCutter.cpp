@@ -114,21 +114,23 @@ bool ObjModel::load(const std::string& filename)
     }
 
     cout << "Loading " << filename << "..." << endl;
-    char type[40];
-    while (fscanf(file, "%s", type) != EOF)
+    char buffer[1024];
+    while (fgets(buffer, sizeof(buffer), file))
     {
+        char type[100];
+        sscanf(buffer, "%s", type);
         if (strcmp(type, "mtllib") == 0)
         {
-            fgetc(file);
             char mtllibBuff[200];
-            fgets(mtllibBuff, sizeof(mtllibBuff), file);
+            // fgets(mtllibBuff, sizeof(mtllibBuff), file);
+            sscanf(buffer, "mtllib %[^\n]", mtllibBuff);
             mtllib = string(mtllibBuff);
             mtllib.erase(mtllib.find_last_not_of('\n') + 1);
         }
         else if (strcmp(type, "v") == 0)
         {
             Vector3 point{};
-            fscanf(file, "%f %f %f", &point.x, &point.y, &point.z);
+            sscanf(buffer, "v %f %f %f", &point.x, &point.y, &point.z);
             minX = point.x < minX ? point.x : minX;
             minY = point.y < minY ? point.y : minY;
             minZ = point.z < minZ ? point.z : minZ;
@@ -140,20 +142,19 @@ bool ObjModel::load(const std::string& filename)
         else if (strcmp(type, "vt") == 0)
         {
             Vector2 point{};
-            fscanf(file, "%f %f", &point.x, &point.y);
+            sscanf(buffer, "vt %f %f", &point.x, &point.y);
             texturePoints.emplace_back(point.x, point.y);
         }
         else if (strcmp(type, "vn") == 0)
         {
             Vector3 normal{};
-            fscanf(file, "%f %f %f", &normal.x, &normal.y, &normal.z);
+            sscanf(buffer, "vn %f %f %f", &normal.x, &normal.y, &normal.z);
             normals.push_back(normal);
         }
         else if (strcmp(type, "usemtl") == 0)
         {
-            fgetc(file);
             char mtlBuff[200];
-            fgets(mtlBuff, sizeof(mtlBuff), file);
+            sscanf(buffer, "usemtl %[^\n]", mtlBuff);
             MtlFaces facesNow;
             facesNow.mtl = string(mtlBuff);
             facesNow.mtl.erase(facesNow.mtl.find_last_not_of('\n') + 1);
@@ -161,41 +162,60 @@ bool ObjModel::load(const std::string& filename)
         }
         else if (strcmp(type, "f") == 0)
         {
-            Face face{};
-            // std::string s1, s2, s3;
-            char s1[50], s2[50], s3[300];
-            fscanf(file, "%s %s %s\n", s1, s2, s3);
-            // 找到s1中有多少个 /
-            int count = std::count(s3, s3 + strlen(s3), '/');
-            int spaceCount = std::count(s3, s3 + strlen(s3), ' ');
-            if (spaceCount > 0)
+            std::vector<int> v, t, n;
+
+            char vtnAllBuff[300];
+            char vtnSingleBuff[100];
+            sscanf(buffer, "f%[^\n]", vtnAllBuff);
+            sscanf(buffer, "f %s", vtnSingleBuff);
+            int spaceCount = std::count(vtnAllBuff, vtnAllBuff + strlen(vtnAllBuff), ' ');
+            string regex = "%d/%d/%d";
+
+            char *ptr = vtnAllBuff;
+            for (int i = 0; i < spaceCount; i++)
             {
-                cout << "Error: function ObjModel::load read file failed, not support face type." << endl;
-                exit(-1);
+                int a, b, c;
+                // 用regex不断读取vtnAllBuff的数字
+                int ret= sscanf(ptr, regex.c_str(), &a, &b, &c);
+                ptr += strcspn(ptr, " ") + 1;
+                if (ret >= 1)
+                    v.push_back(a);
+                if (ret >= 2)
+                    t.push_back(b);
+                if (ret >= 3)
+                    n.push_back(c);
             }
-            if (count == 0)
+
+
+            int lenth = v.size();
+            for (int i = 0; i <= lenth - 3; i++)
             {
-                face.v1 = std::stoi(s1);
-                face.v2 = std::stoi(s2);
-                face.v3 = std::stoi(s3);
-                faces.push_back(face);
-            }
-            else if (count == 1)
-            {
-                sscanf(s1, "%d/%d", &face.v1, &face.t1);
-                sscanf(s2, "%d/%d", &face.v2, &face.t2);
-                sscanf(s3, "%d/%d", &face.v3, &face.t3);
-                faces.push_back(face);
-            }
-            else
-            {
-                cout << "Error: function ObjModel::load read file failed, not support face type." << endl;
-                exit(-2);
+                Face newFace;
+                newFace.v1 = v[0];
+                newFace.v2 = v[i + 1];
+                newFace.v3 = v[i + 2];
+                if (t.size() > 0)
+                {
+                    newFace.t1 = t[0];
+                    newFace.t2 = t[i + 1];
+                    newFace.t3 = t[i + 2];
+                }
+                if (n.size() > 0)
+                {
+                    newFace.n1 = n[0];
+                    newFace.n2 = n[i + 1];
+                    newFace.n3 = n[i + 2];
+                }
+                faces.push_back(newFace);
             }
         }
         else
         {
             while (fgetc(file)!= '\n');
+            if (type[0] == '#')
+                continue;
+            if (strcmp(type, "g") == 0)
+                continue;
             std::cout  << "unknown type: " << type << std::endl;
         }
     }
@@ -281,12 +301,22 @@ void ObjCutter::cut(const Plane& plane, const std::string& outputFilename)
         {
             Vector3 triangle[3];
             Vector2 texture[3];
+            Vector3 normal[3];
             triangle[0] = points[face.v1 - 1];
             triangle[1] = points[face.v2 - 1];
             triangle[2] = points[face.v3 - 1];
-            texture[0] = texturePoints[face.t1 - 1];
-            texture[1] = texturePoints[face.t2 - 1];
-            texture[2] = texturePoints[face.t3 - 1];
+            if (face.t1 > 0)
+            {
+                texture[0] = texturePoints[face.t1 - 1];
+                texture[1] = texturePoints[face.t2 - 1];
+                texture[2] = texturePoints[face.t3 - 1];
+            }
+            if (face.n1 > 0)
+            {
+                normal[0] = normals[face.n1 - 1];
+                normal[1] = normals[face.n2 - 1];
+                normal[2] = normals[face.n3 - 1];
+            }
             TriangleStatus status(triangle, plane);
 
             // 全部在里面的情况
@@ -296,9 +326,18 @@ void ObjCutter::cut(const Plane& plane, const std::string& outputFilename)
                 newFace.v1 = addPoint(triangle[0]);
                 newFace.v2 = addPoint(triangle[1]);
                 newFace.v3 = addPoint(triangle[2]);
-                newFace.t1 = addTexturePoint(texture[0]);
-                newFace.t2 = addTexturePoint(texture[1]);
-                newFace.t3 = addTexturePoint(texture[2]);
+                if (face.t1 > 0)
+                {
+                    newFace.t1 = addTexturePoint(texture[0]);
+                    newFace.t2 = addTexturePoint(texture[1]);
+                    newFace.t3 = addTexturePoint(texture[2]);
+                }
+                if (face.n1 > 0)
+                {
+                    newFace.n1 = addNormal(normal[0]);
+                    newFace.n2 = addNormal(normal[1]);
+                    newFace.n3 = addNormal(normal[2]);
+                }
                 cuttedModel.addFace(newFace);
                 continue;
             }
@@ -323,9 +362,18 @@ void ObjCutter::cut(const Plane& plane, const std::string& outputFilename)
                 newFace.v1 = addPoint(triangle[singleIndex]);
                 newFace.v2 = addPoint(newPoint1);
                 newFace.v3 = addPoint(newPoint2);
-                newFace.t1 = addTexturePoint(texture[singleIndex]);
-                newFace.t2 = addTexturePoint(newTexture1);
-                newFace.t3 = addTexturePoint(newTexture2);
+                if (face.t1 > 0)
+                {
+                    newFace.t1 = addTexturePoint(texture[singleIndex]);
+                    newFace.t2 = addTexturePoint(newTexture1);
+                    newFace.t3 = addTexturePoint(newTexture2);
+                }
+                if (face.n1 > 0)
+                {
+                    newFace.n1 = addNormal(normal[0]);
+                    newFace.n2 = addNormal(normal[1]);
+                    newFace.n3 = addNormal(normal[2]);
+                }
                 cuttedModel.addFace(newFace);
             }
             else if (status.getInpartNum() == 2)
@@ -339,16 +387,29 @@ void ObjCutter::cut(const Plane& plane, const std::string& outputFilename)
                 newFace1.v1 = addPoint(p1);
                 newFace1.v2 = addPoint(p2);
                 newFace1.v3 = addPoint(newPoint2);
-                newFace1.t1 = addTexturePoint(t1);
-                newFace1.t2 = addTexturePoint(t2);
-                newFace1.t3 = addTexturePoint(newTexture2);
-
                 newFace2.v1 = addPoint(newPoint2);
                 newFace2.v2 = addPoint(newPoint1);
                 newFace2.v3 = addPoint(p1);
-                newFace2.t1 = addTexturePoint(newTexture2);
-                newFace2.t2 = addTexturePoint(newTexture1);
-                newFace2.t3 = addTexturePoint(t1);
+
+                if (face.t1 > 0)
+                {
+                    newFace1.t1 = addTexturePoint(t1);
+                    newFace1.t2 = addTexturePoint(t2);
+                    newFace1.t3 = addTexturePoint(newTexture2);
+                    newFace2.t1 = addTexturePoint(newTexture2);
+                    newFace2.t2 = addTexturePoint(newTexture1);
+                    newFace2.t3 = addTexturePoint(t1);
+                }
+
+                if (face.n1 > 0)
+                {
+                    newFace1.n1 = addNormal(normal[0]);
+                    newFace1.n2 = addNormal(normal[1]);
+                    newFace1.n3 = addNormal(normal[2]);
+                    newFace2.n1 = addNormal(normal[2]);
+                    newFace2.n2 = addNormal(normal[1]);
+                    newFace2.n3 = addNormal(normal[0]);
+                }
 
                 cuttedModel.addFace(newFace1);
                 cuttedModel.addFace(newFace2);
@@ -392,19 +453,27 @@ void ObjCutter::cut(const Plane& plane, const std::string& outputFilename)
 void ObjCutter::cutFace(const Plane& plane, Vector3* triangle, Vector2* triangleTexture, const TriangleStatus& status,
     Vector3& newPoint1, Vector3& newPoint2, Vector2& newTexturePoint1, Vector2& newTexturePoint2)
 {
-    Vector3 pSingle, p1, p2;
-    Vector2 tSingle, t1, t2;
     int singleIndex = status.getSingleIndex() - 1;
+
+    Vector3 pSingle, p1, p2;
     pSingle = triangle[singleIndex];
     p1 = triangle[(singleIndex + 1) % 3];
     p2 = triangle[(singleIndex + 2) % 3];
-    tSingle = triangleTexture[singleIndex];
-    t1 = triangleTexture[(singleIndex + 1) % 3];
-    t2 = triangleTexture[(singleIndex + 2) % 3];
+
+    Vector2 tSingle, t1, t2;
+    if (triangleTexture)
+    {
+        tSingle = triangleTexture[singleIndex];
+        t1 = triangleTexture[(singleIndex + 1) % 3];
+        t2 = triangleTexture[(singleIndex + 2) % 3];
+    }
 
     // 计算单一点与其他两点的连线与平面的两个交点
     newPoint1 = getIntersectPoint(pSingle, p1, plane);
     newPoint2 = getIntersectPoint(pSingle, p2, plane);
+
+    if (!triangleTexture)
+        return;
 
     // 用相似三角形计算新的纹理坐标
     float rate1 = (pSingle - p1).length() /

@@ -56,12 +56,13 @@ struct Vector3 {
 struct Face {
     unsigned int v1{}, v2{}, v3{};
     unsigned int t1{}, t2{}, t3{};
+    unsigned int n1{}, n2{}, n3{};
 
     friend std::ostream& operator<<(std::ostream& os, const Face& obj);
 };
 
 struct MtlFaces {
-    string mtl;
+    string mtl{};
     std::vector<Face> faces;
 
     friend std::ostream& operator<<(std::ostream& os, const MtlFaces& obj);
