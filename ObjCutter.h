@@ -45,7 +45,7 @@ public:
     void setPoint(int index, const Vector3& point);
     void setTexturePoint(int index, const Vector2& texturePoint);
     void setNormal(int index, const Vector3& normal);
-    void iniitSpaces(int numPoints, int numTexturePoints, int numNormals);
+    void initSpaces(int numPoints, int numTexturePoints, int numNormals);
 };
 
 class ObjCutter : public ObjModel
@@ -60,7 +60,7 @@ private:
     int addNormal(const Vector3& normal);
 
 public:
-    void cut(const Plane& plane);
+    void cut(const Plane& plane, const std::string& outputFilename);
 
     // debug function
     void showTriangleAndTexture(Face* face);

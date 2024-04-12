@@ -85,7 +85,7 @@ void ObjModel::setNormal(int index, const Vector3& normal)
     normals[index - 1] = normal;
 }
 
-void ObjModel::iniitSpaces(int numPoints, int numTexturePoints, int numNormals)
+void ObjModel::initSpaces(int numPoints, int numTexturePoints, int numNormals)
 {
     points.reserve(numPoints);
     points.resize(numPoints);
@@ -163,10 +163,16 @@ bool ObjModel::load(const std::string& filename)
         {
             Face face{};
             // std::string s1, s2, s3;
-            char s1[50], s2[50], s3[50];
-            fscanf(file, "%s %s %s", s1, s2, s3);
+            char s1[50], s2[50], s3[300];
+            fscanf(file, "%s %s %s\n", s1, s2, s3);
             // 找到s1中有多少个 /
-            int count = std::count(s1, s1 + strlen(s1), '/');
+            int count = std::count(s3, s3 + strlen(s3), '/');
+            int spaceCount = std::count(s3, s3 + strlen(s3), ' ');
+            if (spaceCount > 0)
+            {
+                cout << "Error: function ObjModel::load read file failed, not support face type." << endl;
+                exit(-1);
+            }
             if (count == 0)
             {
                 face.v1 = std::stoi(s1);
@@ -180,6 +186,11 @@ bool ObjModel::load(const std::string& filename)
                 sscanf(s2, "%d/%d", &face.v2, &face.t2);
                 sscanf(s3, "%d/%d", &face.v3, &face.t3);
                 faces.push_back(face);
+            }
+            else
+            {
+                cout << "Error: function ObjModel::load read file failed, not support face type." << endl;
+                exit(-2);
             }
         }
         else
@@ -221,41 +232,38 @@ void ObjModel::info()
 
 int ObjCutter::addPoint(const Vector3& point)
 {
-    static int index = 0;
     auto it = pointMap.find(point);
     if (it == pointMap.end())
     {
-        pointMap[point] = ++index;
-        return index;
+        pointMap[point] = pointMap.size() + 1;
+        return pointMap.size();
     }
     return it->second;
 }
 
 int ObjCutter::addTexturePoint(const Vector2& texturePoint)
 {
-    static int index = 0;
     auto it = textureMap.find(texturePoint);
     if (it == textureMap.end())
     {
-        textureMap[texturePoint] = ++index;
-        return index;
+        textureMap[texturePoint] = textureMap.size() + 1;
+        return textureMap.size();
     }
     return it->second;
 }
 
 int ObjCutter::addNormal(const Vector3& normal)
 {
-    static int index = 0;
     auto it = normalMap.find(normal);
     if (it == normalMap.end())
     {
-        normalMap[normal] = ++index;
-        return index;
+        normalMap[normal] = normalMap.size() + 1;
+        return normalMap.size();
     }
     return it->second;
 }
 
-void ObjCutter::cut(const Plane& plane)
+void ObjCutter::cut(const Plane& plane, const std::string& outputFilename)
 {
     auto begin = std::chrono::system_clock::now();
 
@@ -269,7 +277,7 @@ void ObjCutter::cut(const Plane& plane)
         cuttingMtlFace.mtl = mtlFace.mtl;
         cuttedModel.addMtl(mtlFace.mtl);
 
-        for (auto face : mtlFace.faces)
+        for (const auto& face : mtlFace.faces)
         {
             Vector3 triangle[3];
             Vector2 texture[3];
@@ -280,7 +288,6 @@ void ObjCutter::cut(const Plane& plane)
             texture[1] = texturePoints[face.t2 - 1];
             texture[2] = texturePoints[face.t3 - 1];
             TriangleStatus status(triangle, plane);
-            int inpartNum = status.getInpartNum();
 
             // 全部在里面的情况
             if (status.isFull())
@@ -349,7 +356,7 @@ void ObjCutter::cut(const Plane& plane)
         }
     }
 
-    cuttedModel.iniitSpaces(pointMap.size(), textureMap.size(), normalMap.size());
+    cuttedModel.initSpaces(pointMap.size(), textureMap.size(), normalMap.size());
     for (const auto& kv : pointMap)
     {
         auto point = kv.first;
@@ -378,7 +385,7 @@ void ObjCutter::cut(const Plane& plane)
     std::cout << "Cut time: " << cutElapsedSeconds.count() << "s" << std::endl;
     std::cout << "Plant: " << plane.center << " " << plane.normal << std::endl;
 
-    string newFilePath = fileDir + "cut.obj";
+    string newFilePath = fileDir + outputFilename + ".obj";
     cuttedModel.save(newFilePath);
 }
 
