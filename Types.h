@@ -112,6 +112,5 @@ struct TriangleStatus
     bool isFull() const;
     bool isOut() const;
     bool isPart() const;
-    bool isSamewise() const;
 };
 #endif //TYPES_H

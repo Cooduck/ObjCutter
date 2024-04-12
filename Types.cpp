@@ -208,15 +208,15 @@ TriangleStatus::TriangleStatus(Vector3* triangle, const Plane& plane)
         inpartNum++;
     }
     singleIndex = 0;
-    if (status == 1 || ~status == 1)
+    if (status == 1 || (~status & 7) == 1)
     {
         singleIndex = 1;
     }
-    else if (status == 2 || ~status == 2)
+    else if (status == 2 || (~status & 7) == 2)
     {
         singleIndex = 2;
     }
-    else if (status == 4 || ~status == 4)
+    else if (status == 4 || (~status & 7) == 4)
     {
         singleIndex = 3;
     }
@@ -235,11 +235,6 @@ bool TriangleStatus::isOut() const
 bool TriangleStatus::isPart() const
 {
     return singleIndex != 0;
-}
-
-bool TriangleStatus::isSamewise() const
-{
-    return singleIndex != 2;
 }
 
 unsigned short TriangleStatus::getSingleIndex() const

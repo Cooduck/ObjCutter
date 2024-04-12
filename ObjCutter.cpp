@@ -280,6 +280,7 @@ void ObjCutter::cut(const Plane& plane)
             texture[1] = texturePoints[face.t2 - 1];
             texture[2] = texturePoints[face.t3 - 1];
             TriangleStatus status(triangle, plane);
+            int inpartNum = status.getInpartNum();
 
             // 全部在里面的情况
             if (status.isFull())
@@ -304,7 +305,7 @@ void ObjCutter::cut(const Plane& plane)
             // 其它情况, 先把交点切出来
             Vector3 newPoint1, newPoint2;
             Vector2 newTexture1, newTexture2;
-            cutFace(face, plane, status,
+            cutFace(plane, triangle, texture, status,
                 newPoint1, newPoint2, newTexture1, newTexture2);
 
             // 然后再看情况加三角形
@@ -381,27 +382,18 @@ void ObjCutter::cut(const Plane& plane)
     cuttedModel.save(newFilePath);
 }
 
-void ObjCutter::cutFace(Face face, const Plane& plane, const TriangleStatus& status, Vector3& newPoint1,
-    Vector3& newPoint2, Vector2& newTexturePoint1, Vector2& newTexturePoint2)
+void ObjCutter::cutFace(const Plane& plane, Vector3* triangle, Vector2* triangleTexture, const TriangleStatus& status,
+    Vector3& newPoint1, Vector3& newPoint2, Vector2& newTexturePoint1, Vector2& newTexturePoint2)
 {
-    Vector3 localPoints[3];
-    Vector2 localTexturePoints[3];
-    localPoints[0] = points[face.v1 - 1];
-    localPoints[1] = points[face.v2 - 1];
-    localPoints[2] = points[face.v3 - 1];
-    localTexturePoints[0] = texturePoints[face.t1 - 1];
-    localTexturePoints[1] = texturePoints[face.t2 - 1];
-    localTexturePoints[2] = texturePoints[face.t3 - 1];
-
     Vector3 pSingle, p1, p2;
     Vector2 tSingle, t1, t2;
     int singleIndex = status.getSingleIndex() - 1;
-    pSingle = localPoints[singleIndex];
-    p1 = localPoints[(singleIndex + 1) % 3];
-    p2 = localPoints[(singleIndex + 2) % 3];
-    tSingle = localTexturePoints[singleIndex];
-    t1 = localTexturePoints[(singleIndex + 1) % 3];
-    t2 = localTexturePoints[(singleIndex + 2) % 3];
+    pSingle = triangle[singleIndex];
+    p1 = triangle[(singleIndex + 1) % 3];
+    p2 = triangle[(singleIndex + 2) % 3];
+    tSingle = triangleTexture[singleIndex];
+    t1 = triangleTexture[(singleIndex + 1) % 3];
+    t2 = triangleTexture[(singleIndex + 2) % 3];
 
     // 计算单一点与其他两点的连线与平面的两个交点
     newPoint1 = getIntersectPoint(pSingle, p1, plane);
@@ -456,7 +448,7 @@ Vector3 ObjCutter::getIntersectPoint(const Vector3& p1, const Vector3& p2, const
         float t = diff.dot(plane.normal) / denom;
         return p1 + lineDirection * t;
     } else {
-        std::cerr << "直线与平面平行或共线，无交点！" << std::endl;
+        std::cout << "直线与平面平行或共线，无交点！" << std::endl;
         return Vector3(); // 或者其他适当的处理方式
     }
 }
