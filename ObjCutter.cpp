@@ -273,26 +273,24 @@ void ObjCutter::cut(const Plane& plane)
         {
             Vector3 triangle[3];
             Vector2 texture[3];
-            auto *v = &face.v1;
-            auto *t = &face.t1;
-            for (int i = 0; i < 3; i++)
-            {
-                triangle[i] = points[*(v+i)];
-                texture[i] = texturePoints[*(t+i)];
-            }
+            triangle[0] = points[face.v1 - 1];
+            triangle[1] = points[face.v2 - 1];
+            triangle[2] = points[face.v3 - 1];
+            texture[0] = texturePoints[face.t1 - 1];
+            texture[1] = texturePoints[face.t2 - 1];
+            texture[2] = texturePoints[face.t3 - 1];
             TriangleStatus status(triangle, plane);
 
             // 全部在里面的情况
             if (status.isFull())
             {
                 Face newFace;
-                v = &newFace.v1;
-                t = &newFace.t1;
-                for (int i = 0; i < 3; i++)
-                {
-                    *(v + i) = addPoint(triangle[i]);
-                    *(t + i) = addTexturePoint(texture[i]);
-                }
+                newFace.v1 = addPoint(triangle[0]);
+                newFace.v2 = addPoint(triangle[1]);
+                newFace.v3 = addPoint(triangle[2]);
+                newFace.t1 = addTexturePoint(texture[0]);
+                newFace.t2 = addTexturePoint(texture[1]);
+                newFace.t3 = addTexturePoint(texture[2]);
                 cuttedModel.addFace(newFace);
                 continue;
             }
@@ -315,12 +313,12 @@ void ObjCutter::cut(const Plane& plane)
             {
                 Face newFace;
                 newFace.v1 = addPoint(triangle[singleIndex]);
-                newFace.t1 = addTexturePoint(texture[singleIndex]);
                 newFace.v2 = addPoint(newPoint1);
                 newFace.v3 = addPoint(newPoint2);
+                newFace.t1 = addTexturePoint(texture[singleIndex]);
                 newFace.t2 = addTexturePoint(newTexture1);
                 newFace.t3 = addTexturePoint(newTexture2);
-                cuttedModel.addFace(face);
+                cuttedModel.addFace(newFace);
             }
             else if (status.getInpartNum() == 2)
             {
