@@ -60,14 +60,13 @@ private:
     int addNormal(const Vector3& normal);
 
 public:
-    void cut(const Plane& plane, const std::string& outputFilename);
+    void cut(const Area& area, const std::string& outputFilename);
 
     // debug function
     void showTriangleAndTexture(Face* face);
 
     // 计算直线与平面交点的函数
-    static Vector3 getIntersectPoint(const Vector3& p1, const Vector3& p2, const Plane& plane);
-    static void cutFace(const Plane& plane, Vector3* triangle, Vector2* triangleTexture, const TriangleStatus& status,
+    static void cutFace(const Area& area, Vector3* triangle, Vector2* triangleTexture, const TriangleStatus& status,
     // output
     Vector3& newPoint1, Vector3& newPoint2,
     Vector2& newTexturePoint1, Vector2& newTexturePoint2);

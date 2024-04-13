@@ -10,6 +10,8 @@
 
 #include "Types.h"
 
+#include <iostream>
+
 // Vector2 implementation
 Vector2::Vector2(float x_val, float y_val) : x(x_val), y(y_val){}
 
@@ -191,30 +193,78 @@ Plane::Plane(const Vector3& pt, const Vector3& normal) : center(pt), normal(norm
     D = -normal.x * pt.x - normal.y * pt.y - normal.z * pt.z;
 }
 
-bool Plane::checkPointSide(Vector3 p) const
+bool Plane::isInside(const Vector3& point) const
 {
-    return (normal.x * p.x + normal.y * p.y + normal.z * p.z + D) >= 0;
+    return (normal.x * point.x + normal.y * point.y + normal.z * point.z + D) >= 0;
 }
 
-float Plane::distance(const Vector3& p) const {
-    Vector3 v = normal * p;
-    Vector3 cv = normal * center;
-    return (v - cv).length();
+Vector3 Plane::getIntersectPoint(const Vector3& p1, const Vector3& p2) const
+{
+    Vector3 lineDirection = p2 - p1;
+
+    // 计算直线与平面的交点
+    float denom = normal.dot(lineDirection);
+    if (std::abs(denom) > 0.0001) { // 避免除以零的情况
+        Vector3 diff = center - p1;
+        float t = diff.dot(normal) / denom;
+        return p1 + lineDirection * t;
+    }
+    std::cout << "直线与平面平行或共线，无交点！" << std::endl;
+    exit(-3);
 }
 
-TriangleStatus::TriangleStatus(Vector3* triangle, const Plane& plane)
+Vector3 Box::getIntersectPoint(const Vector3& p1, const Vector3& p2) const
+{
+
+    Vector3 lineDirection = p2 - p1;
+
+    // 计算直线与平面的交点
+    float tmin = (minPoint.x - p1.x) / lineDirection.x;
+    float tmax = (maxPoint.x - p1.x) / lineDirection.x;
+    float tymin = (minPoint.y - p1.y) / lineDirection.y;
+    float tymax = (maxPoint.y - p1.y) / lineDirection.y;
+
+    if (tmin > tymax || tymin > tmax) {
+        return Vector3{0, 0, 0};
+    }
+
+    if (tymin > tmin) {
+        tmin = tymin;
+    }
+    if (tymax < tmax) {
+        tmax = tymax;
+    }
+
+    float tzmin = (minPoint.z - p1.z) / lineDirection.z;
+    float tzmax = (maxPoint.z - p1.z) / lineDirection.z;
+
+    if (tmin > tzmax || tzmin > tmax) {
+        return Vector3{0, 0, 0};
+    }
+
+    if (tzmin > tmin) {
+        tmin = tzmin;
+    }
+    if (tzmax < tmax) {
+        tmax = tzmax;
+    }
+
+    return p1 + lineDirection * tmin;
+}
+
+TriangleStatus::TriangleStatus(const Vector3* triangle, const Area& area)
 {
     status = 0;
     inpartNum = 0;
-    if (plane.checkPointSide(triangle[0])) {
+    if (area.isInside(triangle[0])) {
         status |= 1;
         inpartNum++;
     }
-    if (plane.checkPointSide(triangle[1])) {
+    if (area.isInside(triangle[1])) {
         status |= 2;
         inpartNum++;
     }
-    if (plane.checkPointSide(triangle[2])) {
+    if (area.isInside(triangle[2])) {
         status |= 4;
         inpartNum++;
     }

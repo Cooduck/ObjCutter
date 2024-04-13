@@ -283,7 +283,7 @@ int ObjCutter::addNormal(const Vector3& normal)
     return it->second;
 }
 
-void ObjCutter::cut(const Plane& plane, const std::string& outputFilename)
+void ObjCutter::cut(const Area& area, const std::string& outputFilename)
 {
     auto begin = std::chrono::system_clock::now();
 
@@ -317,7 +317,7 @@ void ObjCutter::cut(const Plane& plane, const std::string& outputFilename)
                 normal[1] = normals[face.n2 - 1];
                 normal[2] = normals[face.n3 - 1];
             }
-            TriangleStatus status(triangle, plane);
+            TriangleStatus status(triangle, area);
 
             // 全部在里面的情况
             if (status.isFull())
@@ -351,7 +351,7 @@ void ObjCutter::cut(const Plane& plane, const std::string& outputFilename)
             // 其它情况, 先把交点切出来
             Vector3 newPoint1, newPoint2;
             Vector2 newTexture1, newTexture2;
-            cutFace(plane, triangle, texture, status,
+            cutFace(area, triangle, texture, status,
                 newPoint1, newPoint2, newTexture1, newTexture2);
 
             // 然后再看情况加三角形
@@ -444,14 +444,14 @@ void ObjCutter::cut(const Plane& plane, const std::string& outputFilename)
 
     std::chrono::duration<double> cutElapsedSeconds = std::chrono::system_clock::now() - begin;
     std::cout << "Cut time: " << cutElapsedSeconds.count() << "s" << std::endl;
-    std::cout << "Plant: " << plane.center << " " << plane.normal << std::endl;
+    // std::cout << "area: " << area << std::endl;
 
     string newFilePath = fileDir + outputFilename + ".obj";
     cuttedModel.save(newFilePath);
 }
 
-void ObjCutter::cutFace(const Plane& plane, Vector3* triangle, Vector2* triangleTexture, const TriangleStatus& status,
-    Vector3& newPoint1, Vector3& newPoint2, Vector2& newTexturePoint1, Vector2& newTexturePoint2)
+void ObjCutter::cutFace(const Area& area, Vector3* triangle, Vector2* triangleTexture, const TriangleStatus& status,
+                        Vector3& newPoint1, Vector3& newPoint2, Vector2& newTexturePoint1, Vector2& newTexturePoint2)
 {
     int singleIndex = status.getSingleIndex() - 1;
 
@@ -469,8 +469,8 @@ void ObjCutter::cutFace(const Plane& plane, Vector3* triangle, Vector2* triangle
     }
 
     // 计算单一点与其他两点的连线与平面的两个交点
-    newPoint1 = getIntersectPoint(pSingle, p1, plane);
-    newPoint2 = getIntersectPoint(pSingle, p2, plane);
+    newPoint1 = area.getIntersectPoint(pSingle, p1);
+    newPoint2 = area.getIntersectPoint(pSingle, p2);
 
     if (!triangleTexture)
         return;
@@ -512,20 +512,3 @@ void ObjCutter::showTriangleAndTexture(Face* face)
     cout << "Texture length: " << texLen1 << " " << texLen2 << " " << texLen3 << endl;
 
 }
-
-Vector3 ObjCutter::getIntersectPoint(const Vector3& p1, const Vector3& p2, const Plane& plane)
-{
-    Vector3 lineDirection = p2 - p1;
-
-    // 计算直线与平面的交点
-    float denom = plane.normal.dot(lineDirection);
-    if (std::abs(denom) > 0.0001) { // 避免除以零的情况
-        Vector3 diff = plane.center - p1;
-        float t = diff.dot(plane.normal) / denom;
-        return p1 + lineDirection * t;
-    } else {
-        std::cout << "直线与平面平行或共线，无交点！" << std::endl;
-        return Vector3(); // 或者其他适当的处理方式
-    }
-}
-

@@ -89,16 +89,31 @@ struct ObjFaces
     unsigned int size();
 };
 
-struct Plane {
+struct Area
+{
+    virtual ~Area() = default;
+    virtual bool isInside(const Vector3& point) const = 0;
+    virtual Vector3 getIntersectPoint(const Vector3& p1, const Vector3& p2) const = 0;
+};
+
+struct Plane : Area{
     Vector3 center;
     Vector3 normal;
     float D;
 
     Plane(const Vector3& pt, const Vector3& normal);
 
-    bool checkPointSide(Vector3 p) const;
+    bool isInside(const Vector3& point) const override;
+    Vector3 getIntersectPoint(const Vector3& p1, const Vector3& p2) const override;
+};
 
-    float distance(const Vector3& p) const;
+struct Box : Area{
+    Vector3 minPoint, maxPoint;
+
+    Box(const Vector3& minPt, const Vector3& maxPt);
+
+    bool isInside(const Vector3& point) const override;
+    Vector3 getIntersectPoint(const Vector3& p1, const Vector3& p2) const override;
 };
 
 struct TriangleStatus
@@ -107,7 +122,7 @@ struct TriangleStatus
     unsigned short singleIndex;
     unsigned short inpartNum;
 
-    TriangleStatus(Vector3* triangle, const Plane& plane);
+    TriangleStatus(const Vector3* triangle, const Area& area);
     unsigned short getSingleIndex() const;
     unsigned short getInpartNum() const;
     bool isFull() const;
