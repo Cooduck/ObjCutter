@@ -62,9 +62,6 @@ private:
 public:
     void cut(const Area& area, const std::string& outputFilename);
 
-    // debug function
-    void showTriangleAndTexture(Face* face);
-
     // 计算直线与平面交点的函数
     static void cutFace(const Area& area, Vector3* triangle, Vector2* triangleTexture, const TriangleStatus& status,
     // output

@@ -483,32 +483,3 @@ void ObjCutter::cutFace(const Area& area, Vector3* triangle, Vector2* triangleTe
     newTexturePoint1 = t1 + (tSingle - t1) / rate1;
     newTexturePoint2 = t2 + (tSingle - t2) / rate2;
 }
-
-void ObjCutter::showTriangleAndTexture(Face* face)
-{
-    const auto& p1 = points[face->v1 - 1];
-    const auto& p2 = points[face->v2 - 1];
-    const auto& p3 = points[face->v3 - 1];
-    const auto& t1 = texturePoints[face->t1 - 1];
-    const auto& t2 = texturePoints[face->t2 - 1];
-    const auto& t3 = texturePoints[face->t3 - 1];
-    cout << "Triangle: " << endl
-        << p1 << endl
-        << p2 << endl
-        << p3 << endl;
-    cout << "Texture: " << endl
-        << t1 << endl
-        << t2 << endl
-        << t3 << endl;
-    // 输出三角形边长
-    float len1 = (p2 - p1).length();
-    float len2 = (p3 - p2).length();
-    float len3 = (p1 - p3).length();
-    cout << "Triangle length: " << len1 << " " << len2 << " " << len3 << endl;
-    // 输出材质边长
-    float texLen1 = (t2 - t1).length();
-    float texLen2 = (t3 - t2).length();
-    float texLen3 = (t1 - t3).length();
-    cout << "Texture length: " << texLen1 << " " << texLen2 << " " << texLen3 << endl;
-
-}
