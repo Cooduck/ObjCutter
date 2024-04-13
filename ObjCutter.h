@@ -62,13 +62,13 @@ private:
 public:
     void cut(const Area& area, const std::string& outputFilename);
 
-    // 计算直线与平面交点的函数
-    static void cutFace(const Area& area, Vector3* triangle, Vector2* triangleTexture, const TriangleStatus& status,
-    // output
-    Vector3& newPoint1, Vector3& newPoint2,
-    Vector2& newTexturePoint1, Vector2& newTexturePoint2);
+    // 计算两点与域的交点函数
+    static void cutFace(const Area& area, const Vector3* triangle,
+                const Vector2* triangleTexture, const TriangleStatus& status,
+                // output
+                Vector3& newPoint1, Vector3& newPoint2,
+                Vector2& newTexturePoint1, Vector2& newTexturePoint2);
 };
-
 
 
 #endif //OBJCUTTER_H

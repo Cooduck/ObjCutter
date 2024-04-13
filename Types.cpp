@@ -213,9 +213,16 @@ Vector3 Plane::getIntersectPoint(const Vector3& p1, const Vector3& p2) const
     exit(-3);
 }
 
+// Box implementation
+bool Box::isInside(const Vector3& point) const
+{
+    return (point.x >= minPoint.x && point.x <= maxPoint.x &&
+            point.y >= minPoint.y && point.y <= maxPoint.y &&
+            point.z >= minPoint.z && point.z <= maxPoint.z);
+}
+
 Vector3 Box::getIntersectPoint(const Vector3& p1, const Vector3& p2) const
 {
-
     Vector3 lineDirection = p2 - p1;
 
     // 计算直线与平面的交点

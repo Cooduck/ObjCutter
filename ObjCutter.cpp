@@ -450,7 +450,7 @@ void ObjCutter::cut(const Area& area, const std::string& outputFilename)
     cuttedModel.save(newFilePath);
 }
 
-void ObjCutter::cutFace(const Area& area, Vector3* triangle, Vector2* triangleTexture, const TriangleStatus& status,
+void ObjCutter::cutFace(const Area& area, const Vector3* triangle, const Vector2* triangleTexture, const TriangleStatus& status,
                         Vector3& newPoint1, Vector3& newPoint2, Vector2& newTexturePoint1, Vector2& newTexturePoint2)
 {
     int singleIndex = status.getSingleIndex() - 1;
