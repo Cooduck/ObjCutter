@@ -11,15 +11,14 @@ using std::cout;
 using std::endl;
 using std::string;
 
-int main()
+void splitObj(const string& objPath, float stepSize)
 {
     ObjCutter objCutter;
-    string filePath = FILE_PATH;
-    bool success = objCutter.load(filePath);
+    bool success = objCutter.load(objPath);
     if (!success)
     {
         cout << "Failed to load OBJ file." << endl;
-        return 1;
+        return;
     }
     objCutter.info();
 
@@ -27,7 +26,6 @@ int main()
     Vector3 maxPoint = objCutter.getMaxPoint();
     cout << "minPoint: " << minPoint << endl;
     cout << "maxPoint: " << maxPoint << endl;
-    float stepSize = 50;
     minPoint.x = std::floor(minPoint.x / stepSize) * stepSize;
     minPoint.y = std::floor(minPoint.y / stepSize) * stepSize;
     minPoint.z = std::floor(minPoint.z / stepSize) * stepSize;
@@ -88,5 +86,13 @@ int main()
         }
         delete cutObjX;
     }
+}
+
+int main()
+{
+    // string targetDir = "D:/BaiduNetdiskDownload/terra_obj/BlockBABA";
+    string targetDir = "D:/BlockYAYX";
+    string objPath = targetDir + targetDir.substr(targetDir.find_last_of("/\\") + 1) + ".obj";
+    splitObj(objPath, 2);
     return 0;
 }
