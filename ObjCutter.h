@@ -32,10 +32,13 @@ protected:
     std::chrono::duration<double> loadElapsedSeconds{};
 
 public:
+    ObjModel() = default;
+    ObjModel(const std::string& filedir) : fileDir(filedir) {};
     // base actions
     bool load(const std::string& filename);
     void info();
     bool save(const std::string& filename);
+    bool empty() const;
     Vector3 getCenter() const;
 
     // for setting data
@@ -60,7 +63,9 @@ private:
     int addNormal(const Vector3& normal);
 
 public:
-    void cut(const Area& area, const std::string& outputFilename);
+    ObjCutter() = default;
+    ObjCutter(const std::string& filedir) : ObjModel(filedir) {};
+    ObjCutter* cut(const Area& area);
 
     // 计算两点与域的交点函数
     static void cutFace(const Area& area, const Vector3* triangle,

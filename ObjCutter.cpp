@@ -18,7 +18,8 @@ using std::string;
 
 bool ObjModel::save(const std::string& filename)
 {
-    std::ofstream file(filename);
+    string filenameFull = string(fileDir + fileName + ".obj");
+    std::ofstream file(filenameFull);
     if (file.is_open())
     {
         auto now = std::chrono::system_clock::now();
@@ -39,7 +40,7 @@ bool ObjModel::save(const std::string& filename)
         file.close();
         auto end = std::chrono::system_clock::now();
         std::chrono::duration<double> saveElapsedSeconds = end - now;
-        std::cout << "Save " << filename << " in " << saveElapsedSeconds.count() << "s" << std::endl;
+        std::cout << "Save " << filenameFull << " in " << saveElapsedSeconds.count() << "s" << std::endl;
         std::cout << "Total " << points.size() << " points, "
                   << texturePoints.size() << " texture points, "
                   << normals.size() << " normals, "
@@ -47,6 +48,11 @@ bool ObjModel::save(const std::string& filename)
         return true;
     }
     return false;
+}
+
+bool ObjModel::empty() const
+{
+    return points.empty();
 }
 
 Vector3 ObjModel::getCenter() const
@@ -283,19 +289,19 @@ int ObjCutter::addNormal(const Vector3& normal)
     return it->second;
 }
 
-void ObjCutter::cut(const Area& area, const std::string& outputFilename)
+ObjCutter* ObjCutter::cut(const Area& area)
 {
     auto begin = std::chrono::system_clock::now();
 
-    ObjModel cuttedModel;
-    cuttedModel.setMtllib(mtllib);
+    ObjCutter* cuttedModel = new ObjCutter(fileDir);
+    cuttedModel->setMtllib(mtllib);
 
     // collecting faces
     for (const auto& mtlFace : faces.mtlFaces)
     {
         MtlFaces cuttingMtlFace;
         cuttingMtlFace.mtl = mtlFace.mtl;
-        cuttedModel.addMtl(mtlFace.mtl);
+        cuttedModel->addMtl(mtlFace.mtl);
 
         for (const auto& face : mtlFace.faces)
         {
@@ -338,7 +344,7 @@ void ObjCutter::cut(const Area& area, const std::string& outputFilename)
                     newFace.n2 = addNormal(normal[1]);
                     newFace.n3 = addNormal(normal[2]);
                 }
-                cuttedModel.addFace(newFace);
+                cuttedModel->addFace(newFace);
                 continue;
             }
 
@@ -374,7 +380,7 @@ void ObjCutter::cut(const Area& area, const std::string& outputFilename)
                     newFace.n2 = addNormal(normal[1]);
                     newFace.n3 = addNormal(normal[2]);
                 }
-                cuttedModel.addFace(newFace);
+                cuttedModel->addFace(newFace);
             }
             else if (status.getInpartNum() == 2)
             {
@@ -411,18 +417,18 @@ void ObjCutter::cut(const Area& area, const std::string& outputFilename)
                     newFace2.n3 = addNormal(normal[0]);
                 }
 
-                cuttedModel.addFace(newFace1);
-                cuttedModel.addFace(newFace2);
+                cuttedModel->addFace(newFace1);
+                cuttedModel->addFace(newFace2);
             }
         }
     }
 
-    cuttedModel.initSpaces(pointMap.size(), textureMap.size(), normalMap.size());
+    cuttedModel->initSpaces(pointMap.size(), textureMap.size(), normalMap.size());
     for (const auto& kv : pointMap)
     {
         auto point = kv.first;
         auto index = kv.second;
-        cuttedModel.setPoint(index, point);
+        cuttedModel->setPoint(index, point);
     }
     pointMap.clear();
 
@@ -430,7 +436,7 @@ void ObjCutter::cut(const Area& area, const std::string& outputFilename)
     {
         auto texturePoint = kv.first;
         auto index = kv.second;
-        cuttedModel.setTexturePoint(index, texturePoint);
+        cuttedModel->setTexturePoint(index, texturePoint);
     }
     textureMap.clear();
 
@@ -438,16 +444,15 @@ void ObjCutter::cut(const Area& area, const std::string& outputFilename)
     {
         auto normal = kv.first;
         auto index = kv.second;
-        cuttedModel.setNormal(index, normal);
+        cuttedModel->setNormal(index, normal);
     }
     normalMap.clear();
 
     std::chrono::duration<double> cutElapsedSeconds = std::chrono::system_clock::now() - begin;
     std::cout << "Cut time: " << cutElapsedSeconds.count() << "s" << std::endl;
-    // std::cout << "area: " << area << std::endl;
+    std::cout << "min point: " << minX << " " << minY << " " << minZ << std::endl;
 
-    string newFilePath = fileDir + outputFilename + ".obj";
-    cuttedModel.save(newFilePath);
+    return cuttedModel;
 }
 
 void ObjCutter::cutFace(const Area& area, const Vector3* triangle, const Vector2* triangleTexture, const TriangleStatus& status,
