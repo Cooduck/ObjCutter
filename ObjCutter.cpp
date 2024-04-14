@@ -16,7 +16,7 @@ using std::cout;
 using std::endl;
 using std::string;
 
-bool ObjModel::save(const std::string& filename)
+bool ObjModel::save(const std::string& fileName)
 {
     string filenameFull = string(fileDir + fileName + ".obj");
     std::ofstream file(filenameFull);
