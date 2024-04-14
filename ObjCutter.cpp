@@ -64,6 +64,16 @@ Vector3 ObjModel::getCenter() const
     return center;
 }
 
+Vector3 ObjModel::getMinPoint() const
+{
+    return Vector3(minX, minY, minZ);
+}
+
+Vector3 ObjModel::getMaxPoint() const
+{
+    return Vector3(maxX, maxY, maxZ);
+}
+
 void ObjModel::setMtllib(const std::string& mtllib)
 {
     this->mtllib = mtllib;

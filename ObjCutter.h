@@ -39,7 +39,10 @@ public:
     void info();
     bool save(const std::string& filename);
     bool empty() const;
+
     Vector3 getCenter() const;
+    Vector3 getMinPoint() const;
+    Vector3 getMaxPoint() const;
 
     // for setting data
     void setMtllib(const std::string& mtllib);
