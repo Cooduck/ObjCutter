@@ -12,6 +12,13 @@
 #include <iostream>
 #include <string.h>
 
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <sys/stat.h>
+#endif
+
+
 using std::cout;
 using std::endl;
 using std::string;
@@ -19,6 +26,13 @@ using std::string;
 bool ObjModel::save(const std::string& fileName)
 {
     string filenameFull = string(fileDir + fileName + ".obj");
+    string fileDirFull = string(filenameFull.substr(0, filenameFull.find_last_of("/") + 1));
+    #ifdef _WIN32
+        CreateDirectory(fileDirFull.c_str(), NULL);
+    #else
+        mkdir(fileDirFull.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+    #endif
+
     std::ofstream file(filenameFull);
     if (file.is_open())
     {
@@ -439,6 +453,9 @@ ObjCutter* ObjCutter::cut(const Area& area)
         auto point = kv.first;
         auto index = kv.second;
         cuttedModel->setPoint(index, point);
+        cuttedModel->minX = point.x < cuttedModel->minX ? point.x : cuttedModel->minX;
+        cuttedModel->minY = point.y < cuttedModel->minY ? point.y : cuttedModel->minY;
+        cuttedModel->minZ = point.z < cuttedModel->minZ ? point.z : cuttedModel->minZ;
     }
     pointMap.clear();
 
@@ -459,8 +476,8 @@ ObjCutter* ObjCutter::cut(const Area& area)
     normalMap.clear();
 
     std::chrono::duration<double> cutElapsedSeconds = std::chrono::system_clock::now() - begin;
-    std::cout << "Cut time: " << cutElapsedSeconds.count() << "s" << std::endl;
-    std::cout << "min point: " << minX << " " << minY << " " << minZ << std::endl;
+    // std::cout << "Cut time: " << cutElapsedSeconds.count() << "s" << std::endl;
+    // std::cout << "min point: " << minX << " " << minY << " " << minZ << std::endl;
 
     return cuttedModel;
 }
