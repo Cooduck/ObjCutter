@@ -25,24 +25,14 @@ using std::string;
 
 bool ObjModel::save(const std::string& fileName)
 {
-    string filenameFull = string(fileDir + fileName + ".obj");
-    string fileDirFull = string(filenameFull.substr(0, filenameFull.find_last_of("/") + 1));
-    string fileObjName = string(filenameFull.substr(filenameFull.find_last_of("/") + 1), filenameFull.find_last_of("."));
+    string filedir = fileName.substr(0, fileName.find_last_of("/") + 1);
     #ifdef _WIN32
-        CreateDirectory(fileDirFull.c_str(), NULL);
+        CreateDirectory(filedir.c_str(), NULL);
     #else
         mkdir(fileDirFull.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
     #endif
 
-    std::ifstream checkFile(filenameFull);
-    while (checkFile.good())
-    {
-        fileObjName += "_";
-        filenameFull = fileDirFull + fileObjName + ".obj";
-        checkFile.close();
-        checkFile.open(filenameFull);
-    }
-    std::ofstream file(filenameFull);
+    std::ofstream file(fileName);
     if (file.is_open())
     {
         auto now = std::chrono::system_clock::now();
@@ -63,7 +53,7 @@ bool ObjModel::save(const std::string& fileName)
         file.close();
         auto end = std::chrono::system_clock::now();
         std::chrono::duration<double> saveElapsedSeconds = end - now;
-        std::cout << "Save " << filenameFull << " in " << saveElapsedSeconds.count() << "s" << std::endl;
+        std::cout << "Save " << fileName << " in " << saveElapsedSeconds.count() << "s" << std::endl;
         std::cout << "Total " << points.size() << " points, "
                   << texturePoints.size() << " texture points, "
                   << normals.size() << " normals, "
@@ -95,6 +85,11 @@ Vector3 ObjModel::getMinPoint() const
 Vector3 ObjModel::getMaxPoint() const
 {
     return Vector3(maxX, maxY, maxZ);
+}
+
+string ObjModel::getDir() const
+{
+    return fileDir;
 }
 
 void ObjModel::setMtllib(const std::string& mtllib)

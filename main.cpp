@@ -3,6 +3,8 @@
 #include <fstream>
 #include <string>
 #include <unordered_map>
+#include <filesystem>
+#include <windows.h>
 
 #include "Const.h"
 #include "ObjCutter.h"
@@ -11,7 +13,7 @@ using std::cout;
 using std::endl;
 using std::string;
 
-void splitObj(const string& objPath, float stepSize)
+void splitObj(const string& objPath, float stepSize, const string& outputDir)
 {
     ObjCutter objCutter;
     bool success = objCutter.load(objPath);
@@ -69,7 +71,8 @@ void splitObj(const string& objPath, float stepSize)
                 float z = minPoint.z + k * stepSize;
                 Plane plane3 = Plane(Vector3(x, y, z), Vector3(0, 0, -1));
                 ObjCutter* cutObj = cutObjY->cut(plane3);
-                string fileName = "output/" + std::to_string((int)x) + "_" + std::to_string((int)y) + "_" + std::to_string((int)z);
+
+                string fileName = outputDir + std::to_string((int)x) + "_" + std::to_string((int)y) + "_" + std::to_string((int)z) + ".obj";
                 if (cutObj && !cutObj->empty())
                 {
                     cout << endl;
@@ -90,9 +93,45 @@ void splitObj(const string& objPath, float stepSize)
 
 int main()
 {
-    // string targetDir = "D:/BaiduNetdiskDownload/terra_obj/BlockBABA";
-    string targetDir = "D:/BlockYAYX";
-    string objPath = targetDir + targetDir.substr(targetDir.find_last_of("/\\") + 1) + ".obj";
-    splitObj(objPath, 2);
+    string targetDir = "D:/BaiduNetdiskDownload/terra_obj/";
+    string outputDir = "D:/BaiduNetdiskDownload/splited_obj/";
+    CreateDirectory(outputDir.c_str(), NULL);
+    //将输出重定向到文件
+    freopen(string(outputDir + "log.txt").c_str(), "w", stdout);
+    // 遍历该文件夹
+    for (auto& p : std::filesystem::directory_iterator(targetDir))
+    {
+        if (p.is_directory())
+        {
+            string pStr = p.path().string();
+            string folderName = pStr.substr(pStr.find_last_of("/\\") + 1);
+            string outputDirSplited = outputDir + folderName + "/";
+            CreateDirectory(outputDirSplited.c_str(), NULL);
+            for (auto& p2 : std::filesystem::directory_iterator(p.path()))
+            {
+                if (p2.is_regular_file() && p2.path().extension() == ".obj")
+                {
+                    string objPath = p2.path().string();
+                    splitObj(objPath, 10, outputDirSplited);
+                }
+                else
+                {
+                    // 复制到输出目录
+                    string fileName = p2.path().filename().string();
+                    string outputPath = outputDirSplited + fileName;
+                    std::ifstream ifs(p2.path().string(), std::ios::binary);
+                    std::ofstream ofs(outputPath, std::ios::binary);
+                    ofs << ifs.rdbuf();
+                    ifs.close();
+                    ofs.close();
+                }
+            }
+            std::cout << "finished: " << pStr << " to " << outputDirSplited << endl;
+            std::cerr << "finished: " << pStr << " to " << outputDirSplited << endl;
+        }
+    }
+    // string targetDir = "D:/BlockYAYX";
+    // string objPath = targetDir + "/" + targetDir.substr(targetDir.find_last_of("/\\") + 1) + ".obj";
+    // splitObj(objPath, 10, "D:/BaiduNetdiskDownload/splited_obj/");
     return 0;
 }

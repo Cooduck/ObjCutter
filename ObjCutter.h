@@ -43,6 +43,7 @@ public:
     Vector3 getCenter() const;
     Vector3 getMinPoint() const;
     Vector3 getMaxPoint() const;
+    string getDir() const;
 
     // for setting data
     void setMtllib(const std::string& mtllib);
