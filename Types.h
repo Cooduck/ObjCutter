@@ -10,7 +10,7 @@ using std::string;
 struct Vector2 {
     float x, y;
 
-    explicit Vector2(float x_val = 0.0f, float y_val = 0.0f);
+    explicit Vector2(float x_val = 0.0f, float y_val = 0.0f); 
 
     friend std::ostream& operator<<(std::ostream& os, const Vector2& obj);
 
@@ -97,8 +97,9 @@ struct Area
 };
 
 struct Plane : Area{
+    // Plane为平面，Ax + Bx + Cx + D = 0
     Vector3 center;
-    Vector3 normal;
+    Vector3 normal; // 平面单位法向量（A,B,C）
     float D;
 
     Plane(const Vector3& pt, const Vector3& normal);

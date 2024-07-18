@@ -41,10 +41,6 @@ float Vector2::length() const {
     return std::sqrt(x*x + y*y);
 }
 
-
-// Vector3 implementation
-Vector3::Vector3(float x_val, float y_val, float z_val) : x(x_val), y(y_val), z(z_val) {}
-
 bool operator<(const Vector2& lhs, const Vector2& rhs)
 {
     if (lhs.x < rhs.x)
@@ -53,6 +49,9 @@ bool operator<(const Vector2& lhs, const Vector2& rhs)
         return false;
     return lhs.y < rhs.y;
 }
+
+// Vector3 implementation
+Vector3::Vector3(float x_val, float y_val, float z_val) : x(x_val), y(y_val), z(z_val) {}
 
 std::ostream& operator<<(std::ostream& os, const Vector3& obj) {
     return os << obj.x << " " << obj.y << " " << obj.z;
@@ -187,17 +186,19 @@ unsigned int ObjFaces::size()
     return mtlFaces.size();
 }
 
-// Plane implementation
+// Plane implementation，参数pt为平面上一点，参数normal为平面法向量
 Plane::Plane(const Vector3& pt, const Vector3& normal) : center(pt), normal(normal) {
-    this->normal = this->normal.normalize();
+    this->normal = this->normal.normalize();    // 转为单位法向量
     D = -normal.x * pt.x - normal.y * pt.y - normal.z * pt.z;
 }
 
+// 返回1说明point在平面上或平面的正侧，返回0说明point在平面的负侧
 bool Plane::isInside(const Vector3& point) const
 {
     return (normal.x * point.x + normal.y * point.y + normal.z * point.z + D) >= 0;
 }
 
+// 返回直线与平面的交点
 Vector3 Plane::getIntersectPoint(const Vector3& p1, const Vector3& p2) const
 {
     Vector3 lineDirection = p2 - p1;
@@ -259,10 +260,11 @@ Vector3 Box::getIntersectPoint(const Vector3& p1, const Vector3& p2) const
     return p1 + lineDirection * tmin;
 }
 
+// triangle为Vector3数组
 TriangleStatus::TriangleStatus(const Vector3* triangle, const Area& area)
 {
     status = 0;
-    inpartNum = 0;
+    inpartNum = 0;  // 统计三角形的点在area中的个数
     if (area.isInside(triangle[0])) {
         status |= 1;
         inpartNum++;
@@ -275,7 +277,7 @@ TriangleStatus::TriangleStatus(const Vector3* triangle, const Area& area)
         status |= 4;
         inpartNum++;
     }
-    singleIndex = 0;
+    singleIndex = 0;    // 标识与另外两点不在同一区域的点索引
     if (status == 1 || (~status & 7) == 1)
     {
         singleIndex = 1;
@@ -290,26 +292,31 @@ TriangleStatus::TriangleStatus(const Vector3* triangle, const Area& area)
     }
 }
 
+// 返回1说明三角形完全在区域内
 bool TriangleStatus::isFull() const
 {
     return status == 7;
 }
 
+// 返回1说明三角形完全不在区域内
 bool TriangleStatus::isOut() const
 {
     return status == 0;
 }
 
+// 返回1说明三角形部分在区域内
 bool TriangleStatus::isPart() const
 {
     return singleIndex != 0;
 }
 
+// 返回唯一在区域内或外的顶点的索引
 unsigned short TriangleStatus::getSingleIndex() const
 {
     return singleIndex;
 }
 
+// 返回在区域内的顶点数量
 unsigned short TriangleStatus::getInpartNum() const
 {
     return inpartNum;
