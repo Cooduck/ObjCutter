@@ -93,9 +93,9 @@ void splitObj(const string& objPath, float stepSize, const string& outputDir)
 
 int main()
 {
-    string targetDir = "D:/BaiduNetdiskDownload/terra_obj/";
-    string outputDir = "D:/BaiduNetdiskDownload/splited_obj/";
-    CreateDirectory(outputDir.c_str(), NULL);
+    string targetDir = "C:\\Users\\12569\\Desktop\\ObjCutter\\ObjCutter\\terra_obj\\";
+    string outputDir = "C:\\Users\\12569\\Desktop\\ObjCutter\\ObjCutter\\splited_obj\\";
+    CreateDirectoryA(outputDir.c_str(), NULL);
     //将输出重定向到文件
     freopen(string(outputDir + "log.txt").c_str(), "w", stdout);
     // 遍历该文件夹
@@ -106,7 +106,7 @@ int main()
             string pStr = p.path().string();
             string folderName = pStr.substr(pStr.find_last_of("/\\") + 1);
             string outputDirSplited = outputDir + folderName + "/";
-            CreateDirectory(outputDirSplited.c_str(), NULL);
+            CreateDirectoryA(outputDirSplited.c_str(), NULL);
             for (auto& p2 : std::filesystem::directory_iterator(p.path()))
             {
                 if (p2.is_regular_file() && p2.path().extension() == ".obj")

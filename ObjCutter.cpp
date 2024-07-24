@@ -27,7 +27,7 @@ bool ObjModel::save(const std::string& fileName)
 {
     string filedir = fileName.substr(0, fileName.find_last_of("/") + 1);
     #ifdef _WIN32
-        CreateDirectory(filedir.c_str(), NULL);
+        CreateDirectoryA(filedir.c_str(), NULL);
     #else
         mkdir(fileDirFull.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
     #endif
@@ -199,9 +199,7 @@ bool ObjModel::load(const std::string& filename)
             std::vector<int> v, t, n;
 
             char vtnAllBuff[300];
-            char vtnSingleBuff[100];
             sscanf(buffer, "f%[^\n]", vtnAllBuff);
-            sscanf(buffer, "f %s", vtnSingleBuff);
             int spaceCount = std::count(vtnAllBuff, vtnAllBuff + strlen(vtnAllBuff), ' ');
             string regex = "%d/%d/%d";
 
@@ -451,6 +449,7 @@ ObjCutter* ObjCutter::cut(const Area& area)
         }
     }
 
+    // map映射的索引即为点的索引
     cuttedModel->initSpaces(pointMap.size(), textureMap.size(), normalMap.size());
     for (const auto& kv : pointMap)
     {
