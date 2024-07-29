@@ -73,6 +73,20 @@ Vector3 Vector3::operator*(const Vector3& other) const {
     return Vector3{x * other.x, y * other.y, z * other.z};
 }
 
+bool operator==(const Vector3& lhs, const Vector3& rhs){
+    if(lhs.x == rhs.x && lhs.y == rhs.y && lhs.z == rhs.z){
+        return 1;
+    }
+    else return 0;
+}
+
+bool operator!=(const Vector3& lhs, const Vector3& rhs){
+    if(lhs.x != rhs.x || lhs.y != rhs.y || lhs.z != rhs.z){
+        return 1;
+    }
+    else return 0;
+}
+
 bool operator<(const Vector3& lhs, const Vector3& rhs)
 {
     if (lhs.x < rhs.x)

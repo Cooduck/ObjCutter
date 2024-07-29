@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.28)
+cmake_minimum_required(VERSION 3.0.0)
 project(ObjCutter)
 
 # 指定了项目使用的 C++ 标准为 C++20

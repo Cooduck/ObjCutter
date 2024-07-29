@@ -95,7 +95,7 @@ int main()
 {
     string targetDir = "C:\\Users\\12569\\Desktop\\ObjCutter\\ObjCutter\\terra_obj\\";
     string outputDir = "C:\\Users\\12569\\Desktop\\ObjCutter\\ObjCutter\\splited_obj\\";
-    CreateDirectoryA(outputDir.c_str(), NULL);
+    std::filesystem::create_directory(outputDir);
     //将输出重定向到文件
     freopen(string(outputDir + "log.txt").c_str(), "w", stdout);
     // 遍历该文件夹
@@ -104,15 +104,15 @@ int main()
         if (p.is_directory())
         {
             string pStr = p.path().string();
-            string folderName = pStr.substr(pStr.find_last_of("/\\") + 1);
-            string outputDirSplited = outputDir + folderName + "/";
-            CreateDirectoryA(outputDirSplited.c_str(), NULL);
+            string folderName = pStr.substr(pStr.find_last_of("\\") + 1);
+            string outputDirSplited = outputDir + folderName + "\\";
+            //std::filesystem::create_directory(outputDirSplited);
             for (auto& p2 : std::filesystem::directory_iterator(p.path()))
             {
                 if (p2.is_regular_file() && p2.path().extension() == ".obj")
                 {
                     string objPath = p2.path().string();
-                    splitObj(objPath, 10, outputDirSplited);
+                    splitObj(objPath, 80000, outputDirSplited);
                 }
                 else
                 {

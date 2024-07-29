@@ -11,6 +11,10 @@
 #include <chrono>
 #include <iostream>
 #include <string.h>
+#include <filesystem>
+#include <codecvt>
+#include <locale>
+#include <cstdio>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -22,17 +26,29 @@
 using std::cout;
 using std::endl;
 using std::string;
+using std::wstring;
+
+// 将 std::string 转换为 std::wstring
+std::wstring string_to_wstring(const std::string& str) {
+    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
+    return converter.from_bytes(str);
+}
 
 bool ObjModel::save(const std::string& fileName)
 {
-    string filedir = fileName.substr(0, fileName.find_last_of("/") + 1);
+    string filedir = fileName.substr(0, fileName.find_last_of("\\") + 1);
+
     #ifdef _WIN32
-        CreateDirectoryA(filedir.c_str(), NULL);
+        //CreateDirectoryA(filedir.c_str(), NULL);
+        std::filesystem::create_directory(filedir);
     #else
         mkdir(fileDirFull.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
     #endif
-
+    
+    _putenv("LC_ALL=C");
+    std::locale loc = std::locale::global(std::locale(""));
     std::ofstream file(fileName);
+    std::locale::global(loc);
     if (file.is_open())
     {
         auto now = std::chrono::system_clock::now();
@@ -60,7 +76,10 @@ bool ObjModel::save(const std::string& fileName)
                   << faces.getNumFaces() << " faces." << std::endl;
         return true;
     }
-    return false;
+    else{
+        std::cout << "Error: Unable to open or create file " << fileName << std::endl;
+        return false;
+    }
 }
 
 bool ObjModel::empty() const
@@ -136,11 +155,12 @@ void ObjModel::addFace(Face face)
 
 bool ObjModel::load(const std::string& filename)
 {
-    fileDir = filename.substr(0, filename.find_last_of("/") + 1);
-    fileName = filename.substr(filename.find_last_of("/") + 1);
+    fileDir = filename.substr(0, filename.find_last_of("\\") + 1);
+    fileName = filename.substr(filename.find_last_of("\\") + 1);
+    std::wstring open_file =  string_to_wstring(filename);
 
     auto now = std::chrono::system_clock::now();
-    FILE* file = fopen(filename.c_str(), "r");
+    FILE* file = _wfopen(open_file.c_str(), L"r");
     if (file == nullptr)
     {
         std::cout << "Error: Cannot open file " << filename << std::endl;
@@ -243,7 +263,8 @@ bool ObjModel::load(const std::string& filename)
         }
         else
         {
-            while (fgetc(file)!= '\n');
+            if(type[0] == '\n')
+                continue;
             if (type[0] == '#')
                 continue;
             if (strcmp(type, "g") == 0)
@@ -459,6 +480,9 @@ ObjCutter* ObjCutter::cut(const Area& area)
         cuttedModel->minX = point.x < cuttedModel->minX ? point.x : cuttedModel->minX;
         cuttedModel->minY = point.y < cuttedModel->minY ? point.y : cuttedModel->minY;
         cuttedModel->minZ = point.z < cuttedModel->minZ ? point.z : cuttedModel->minZ;
+        cuttedModel->maxX = point.x > cuttedModel->maxX ? point.x : cuttedModel->maxX;
+        cuttedModel->maxY = point.y > cuttedModel->maxY ? point.y : cuttedModel->maxY;
+        cuttedModel->maxZ = point.z > cuttedModel->maxZ ? point.z : cuttedModel->maxZ;
     }
     pointMap.clear();
 
