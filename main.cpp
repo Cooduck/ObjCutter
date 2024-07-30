@@ -112,7 +112,7 @@ int main()
                 if (p2.is_regular_file() && p2.path().extension() == ".obj")
                 {
                     string objPath = p2.path().string();
-                    splitObj(objPath, 80000, outputDirSplited);
+                    splitObj(objPath, 150000, outputDirSplited);
                 }
                 else
                 {

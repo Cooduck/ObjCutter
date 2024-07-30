@@ -39,34 +39,47 @@ bool ObjModel::save(const std::string& fileName)
     string filedir = fileName.substr(0, fileName.find_last_of("\\") + 1);
 
     #ifdef _WIN32
-        //CreateDirectoryA(filedir.c_str(), NULL);
         std::filesystem::create_directory(filedir);
     #else
         mkdir(fileDirFull.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
     #endif
     
-    _putenv("LC_ALL=C");
-    std::locale loc = std::locale::global(std::locale(""));
-    std::ofstream file(fileName);
-    std::locale::global(loc);
-    if (file.is_open())
-    {
+    // C方式的输出分割后的obj文件
+    FILE* file = _wfopen(string_to_wstring(fileName).c_str(), L"w");
+    if (file == nullptr) {
+        std::cout << "Error: Unable to open or create file " << fileName << std::endl;
+        return false;
+    }
+    else{
         auto now = std::chrono::system_clock::now();
-        file << "mtllib " << mtllib << std::endl;
+        string content = "mtllib " + mtllib + '\n';
+        fputs(content.c_str(), file);
         for (const auto& point : points)
         {
-            file << "v " << point << std::endl;
+            content = "v " + point.Vector3_to_string() + '\n';
+            fputs(content.c_str(), file);
         }
         for (const auto& tpoint : texturePoints)
         {
-            file << "vt " << tpoint << std::endl;
+            content = "vt " + tpoint.Vector2_to_string() + '\n';
+            fputs(content.c_str(), file);
         }
         for (const auto& normal : normals)
         {
-            file << "vn " << normal << std::endl;
+            content = "vn " + normal.Vector3_to_string() + '\n';
+            fputs(content.c_str(), file);
         }
-        file << faces;
-        file.close();
+        for(const auto& mtlFace : faces.mtlFaces){
+            if (!mtlFace.mtl.empty()){
+                content = "usemtl " + mtlFace.mtl + '\n';
+                fputs(content.c_str(), file);
+            }
+            for(auto& f : mtlFace.faces) {
+                content = "f " + f.Face_to_string() + '\n';
+                fputs(content.c_str(), file);
+            }
+        }
+        fclose(file);
         auto end = std::chrono::system_clock::now();
         std::chrono::duration<double> saveElapsedSeconds = end - now;
         std::cout << "Save " << fileName << " in " << saveElapsedSeconds.count() << "s" << std::endl;
@@ -76,10 +89,44 @@ bool ObjModel::save(const std::string& fileName)
                   << faces.getNumFaces() << " faces." << std::endl;
         return true;
     }
-    else{
-        std::cout << "Error: Unable to open or create file " << fileName << std::endl;
-        return false;
-    }
+
+
+    // C++方式的输出分割后的obj文件，但ofstream无法读取带中文的文件路径
+    // _putenv("LC_ALL=C");
+    // std::locale loc = std::locale::global(std::locale(""));
+    // std::ofstream file(fileName);
+    // std::locale::global(loc);
+    // if (file.is_open())
+    // {
+    //     auto now = std::chrono::system_clock::now();
+    //     file << "mtllib " << mtllib << std::endl;
+    //     for (const auto& point : points)
+    //     {
+    //         file << "v " << point << std::endl;
+    //     }
+    //     for (const auto& tpoint : texturePoints)
+    //     {
+    //         file << "vt " << tpoint << std::endl;
+    //     }
+    //     for (const auto& normal : normals)
+    //     {
+    //         file << "vn " << normal << std::endl;
+    //     }
+    //     file << faces;
+    //     file.close();
+    //     auto end = std::chrono::system_clock::now();
+    //     std::chrono::duration<double> saveElapsedSeconds = end - now;
+    //     std::cout << "Save " << fileName << " in " << saveElapsedSeconds.count() << "s" << std::endl;
+    //     std::cout << "Total " << points.size() << " points, "
+    //               << texturePoints.size() << " texture points, "
+    //               << normals.size() << " normals, "
+    //               << faces.getNumFaces() << " faces." << std::endl;
+    //     return true;
+    // }
+    // else{
+    //     std::cout << "Error: Unable to open or create file " << fileName << std::endl;
+    //     return false;
+    // }
 }
 
 bool ObjModel::empty() const

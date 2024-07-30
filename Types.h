@@ -25,6 +25,8 @@ struct Vector2 {
     friend bool operator<(const Vector2& lhs, const Vector2& rhs);
 
     float length() const;
+
+    string Vector2_to_string() const;
 };
 
 struct Vector3 {
@@ -55,6 +57,8 @@ struct Vector3 {
     float dot(const Vector3& other) const;
 
     Vector3 normalize();
+
+    string Vector3_to_string() const;
 };
 
 struct Face {
@@ -63,6 +67,8 @@ struct Face {
     unsigned int n1{}, n2{}, n3{};
 
     friend std::ostream& operator<<(std::ostream& os, const Face& obj);
+
+    string Face_to_string()const;
 };
 
 struct MtlFaces {

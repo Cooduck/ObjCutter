@@ -12,6 +12,9 @@
 
 #include <iostream>
 
+using std::string;
+using std::to_string;
+
 // Vector2 implementation
 Vector2::Vector2(float x_val, float y_val) : x(x_val), y(y_val){}
 
@@ -48,6 +51,10 @@ bool operator<(const Vector2& lhs, const Vector2& rhs)
     if (rhs.x < lhs.x)
         return false;
     return lhs.y < rhs.y;
+}
+
+string Vector2::Vector2_to_string() const {
+    return to_string(x) + " " + to_string(y);
 }
 
 // Vector3 implementation
@@ -118,6 +125,27 @@ Vector3 Vector3::normalize()
 {
     float len = length();
     return Vector3{x / len, y / len, z / len};
+}
+
+string Vector3::Vector3_to_string() const {
+    return to_string(x) + " " + to_string(y) + " " + to_string(z);
+}
+
+string Face::Face_to_string() const {
+    if (n1 != 0){
+        string f = to_string(v1) + "/" + to_string(t1) + "/" + to_string(n1) + " "
+            + to_string(v2) + "/" + to_string(t2) + "/" + to_string(n2) + " "
+            + to_string(v3) + "/" + to_string(t3) + "/" + to_string(n3);
+        return f;
+    }
+    if (t1 != 0){
+        string f = to_string(v1) + "/" + to_string(t1) + " "
+            + to_string(v2) + "/" + to_string(t2) + " "
+            + to_string(v3) + "/" + to_string(t3);
+        return f;
+    }
+    string f = to_string(v1) + " " + to_string(v2) + " " + to_string(v3);
+    return f;
 }
 
 // Face implementation
