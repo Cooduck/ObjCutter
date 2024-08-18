@@ -62,14 +62,26 @@ private:
     std::map<Vector2, int> textureMap;
     std::map<Vector3, int> normalMap;
 
+    std::map<Vector3, int> pointMap1;
+    std::map<Vector2, int> textureMap1;
+    std::map<Vector3, int> normalMap1;
+    std::map<Vector3, int> pointMap2;
+    std::map<Vector2, int> textureMap2;
+    std::map<Vector3, int> normalMap2;
+
     int addPoint(const Vector3& point);
     int addTexturePoint(const Vector2& texturePoint);
     int addNormal(const Vector3& normal);
+
+    int addPoint(const Vector3& point, int op);
+    int addTexturePoint(const Vector2& texturePoint, int op);
+    int addNormal(const Vector3& normal, int op);
 
 public:
     ObjCutter() = default;
     ObjCutter(const std::string& filedir) : ObjModel(filedir) {};
     ObjCutter* cut(const Area& area);
+    void cut(const Area& area, ObjCutter* & cuttedModel1, ObjCutter* & cuttedModel2);
 
     // 计算两点与域的交点函数
     static void cutFace(const Area& area, const Vector3* triangle,
