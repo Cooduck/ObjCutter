@@ -15,6 +15,7 @@
 #include <codecvt>
 #include <locale>
 #include <cstdio>
+#include <float.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -32,6 +33,81 @@ using std::wstring;
 std::wstring string_to_wstring(const std::string& str) {
     std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
     return converter.from_bytes(str);
+}
+
+bool normalize_vt(const std::string& inputfile, const std::string& outputfile)
+{
+    FILE* Inputfile = _wfopen(string_to_wstring(inputfile).c_str(), L"r");
+    FILE* Outputfile;
+    if (Inputfile == nullptr)
+    {
+        std::cout << "Error: Cannot open file " << inputfile << std::endl;
+        return 0;
+    }
+
+    float minU;
+    float maxU;
+    float minV;
+    float maxV;
+    int flag = 1;
+
+    char buffer[1024];
+    while (fgets(buffer, sizeof(buffer), Inputfile))
+    {
+        char type[100];
+        sscanf(buffer, "%s", type);
+        if (strcmp(type, "vt") == 0)
+        {
+            float u, v;
+            sscanf(buffer, "vt %f %f", &u, &v);
+            if(flag){
+                minU = u;
+                maxU = u;
+                minV = v;
+                maxV = v;
+                flag = 0;
+                continue;
+            }
+            minU = std::min(minU, u);
+            maxU = std::max(maxU, u);
+            minV = std::min(minV, v);
+            maxV = std::max(maxV, v);
+        }
+        else
+        {
+            continue;
+        }
+    }
+    fclose(Inputfile);
+
+    Inputfile = _wfopen(string_to_wstring(inputfile).c_str(), L"r");
+    Outputfile = _wfopen(string_to_wstring(outputfile).c_str(), L"w");
+    if (Outputfile == nullptr) {
+        std::cout << "Error: Unable to open or create file " << Outputfile << std::endl;
+        return 0;
+    }
+
+    while (fgets(buffer, sizeof(buffer), Inputfile))
+    {
+        char type[100];
+        sscanf(buffer, "%s", type);
+        if (strcmp(type, "vt") == 0)
+        {
+            float u, v;
+            sscanf(buffer, "vt %f %f", &u, &v);
+            u = (u - minU) / (maxU - minU);
+            v = (v - minV) / (maxV - minV);
+            std::string content =  "vt " + std::to_string(u) + " " + std::to_string(v) + '\n';
+            fputs(content.c_str(), Outputfile);
+        }
+        else
+        {
+            fputs(buffer, Outputfile);
+        }
+    }
+    fclose(Inputfile);
+    fclose(Outputfile);
+    return 1;
 }
 
 bool ObjModel::save(const std::string& fileName)

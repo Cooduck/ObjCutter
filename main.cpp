@@ -10,76 +10,122 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <future>
+#include <semaphore>
+#include <queue>
+#include <utility>
 
 #include "Const.h"
 #include "ObjCutter.h"
 
-using std::cout;
-using std::endl;
-using std::string;
+std::wstring string_to_wstring(const std::string& str);
 
-void splitObj(const string& objPath, float stepSize, const string& outputDir)
-{
-    ObjCutter objCutter;
-    bool success = objCutter.load(objPath);
-    if (!success)
-    {
-        cout << "Failed to load OBJ file." << endl;
-        return;
-    }
-    objCutter.info();
+std::mutex mtx1, mtx2;
+std::condition_variable cv1, cv2;
+int done_cnt1 = 0, done_cnt2 = 0;
+int end_sign1, end_sign2;
+std::queue<std::pair<ObjCutter*, float>> vector1;
+std::queue<std::pair<ObjCutter*, std::pair<float, float>>> vector2;
 
-    Vector3 minPoint = objCutter.getMinPoint();
-    Vector3 maxPoint = objCutter.getMaxPoint();
-    cout << "minPoint: " << minPoint << endl;
-    cout << "maxPoint: " << maxPoint << endl;
-    minPoint.x = std::floor(minPoint.x / stepSize) * stepSize;
-    minPoint.y = std::floor(minPoint.y / stepSize) * stepSize;
-    minPoint.z = std::floor(minPoint.z / stepSize) * stepSize;
-    maxPoint.x = std::ceil(maxPoint.x / stepSize) * stepSize;
-    maxPoint.y = std::ceil(maxPoint.y / stepSize) * stepSize;
-    maxPoint.z = std::ceil(maxPoint.z / stepSize) * stepSize;
-    cout << "minPoint: " << minPoint << endl;
-    cout << "maxPoint: " << maxPoint << endl;
-    int numStepsX = (maxPoint.x - minPoint.x) / stepSize;
-    int numStepsY = (maxPoint.y - minPoint.y) / stepSize;
-    int numStepsZ = (maxPoint.z - minPoint.z) / stepSize;
-    cout << "numStepsX: " << numStepsX << endl;
-    cout << "numStepsY: " << numStepsY << endl;
-    cout << "numStepsZ: " << numStepsZ << endl;
-
-    ObjCutter* tempObj = &objCutter;
-    for (int i = 1; i <= numStepsX; i++)
-    {
-        auto oldTempObj = tempObj;
+void producer1(ObjCutter* objCutter, int numStepsX, float minX, float stepSize, Vector3 minPoint, Vector3 maxPoint) {
+    for (int i = 1; i <= numStepsX; i++) {
         float x = minPoint.x + i * stepSize;
         Plane plane = Plane(Vector3(x, minPoint.y, minPoint.z), Vector3(-1, 0, 0));
-        ObjCutter* cutObjX = tempObj->cut(plane);
+        ObjCutter* cutObjX = objCutter->cut(plane);
         Plane planeOtherSide = Plane(Vector3(x, maxPoint.y, minPoint.z), Vector3(1, 0, 0));
-        tempObj = tempObj->cut(planeOtherSide);
-        if (i > 1)
+        auto oldTempObj = objCutter;
+        objCutter = objCutter->cut(planeOtherSide);
+        if(i > 1){
             delete oldTempObj;
+        }
 
-        for (int j = 1; j <= numStepsY; j++)
         {
-            float y = minPoint.y + j * stepSize;
-            Plane plane2 = Plane(Vector3(x, y, minPoint.z), Vector3(0, -1, 0));
-            ObjCutter* cutObjY = cutObjX->cut(plane2);
-            auto oldCutObjX = cutObjX;
-            Plane plane2OtherSide = Plane(Vector3(x, y, maxPoint.z), Vector3(0, 1, 0));
-            cutObjX = cutObjX->cut(plane2OtherSide);
-            delete oldCutObjX;
+            std::unique_lock<std::mutex> lock(mtx1);
+            vector1.push(std::make_pair(cutObjX, x));
+        }
+        cv1.notify_all();
+    }
+    delete objCutter;
 
-            for (int k = 1; k <= numStepsZ; k++)
-            {
+    {
+        std::unique_lock<std::mutex> lock(mtx1);
+        done_cnt1 += 1;
+    }
+    cv1.notify_all();
+}
+
+void producer2(int numStepsY, float minX, float minY, float stepSize, Vector3 minPoint, Vector3 maxPoint) {
+    while (true) {
+        ObjCutter* cutObjX = nullptr;
+        float x;
+        
+        {
+            std::unique_lock<std::mutex> lock(mtx1);
+            cv1.wait(lock, [&] { return !vector1.empty() || done_cnt1 == end_sign1; });
+
+            if (!vector1.empty()) {
+                cutObjX = vector1.front().first;
+                x = vector1.front().second;
+                vector1.pop();
+            } else if (done_cnt1 == end_sign1 && vector1.empty()) {
+                break;  // 没有任务并且 producer1 已完成
+            }
+        }
+
+        if (cutObjX) {
+            for (int j = 1; j <= numStepsY; j++) {
+                float y = minPoint.y + j * stepSize;
+                Plane plane2 = Plane(Vector3(x, y, minPoint.z), Vector3(0, -1, 0));
+                ObjCutter* cutObjY = cutObjX->cut(plane2);
+                auto oldCutObjX = cutObjX;
+                Plane plane2OtherSide = Plane(Vector3(x, y, maxPoint.z), Vector3(0, 1, 0));
+                cutObjX = cutObjX->cut(plane2OtherSide);
+                delete oldCutObjX;
+
+                {
+                    std::unique_lock<std::mutex> lock(mtx2);
+                    vector2.push(std::make_pair(cutObjY, std::make_pair(x, y)));
+                }
+                cv2.notify_all(); 
+            }
+        }
+        delete cutObjX;
+
+        {
+            std::unique_lock<std::mutex> lock(mtx2);
+            done_cnt2 += 1;
+        }
+        cv2.notify_all(); 
+    }
+}
+
+void producer3(int numStepsZ, float minX, float minY, float minZ, float stepSize, Vector3 minPoint, Vector3 maxPoint, const std::string outputDir) {
+    while (true) {
+        ObjCutter* cutObjY = nullptr;
+        float x, y;
+
+        {
+            std::unique_lock<std::mutex> lock(mtx2);
+            cv2.wait(lock, [&] { return !vector2.empty() || done_cnt2 == end_sign2; });
+
+            if (!vector2.empty()) {
+                cutObjY = vector2.front().first;
+                x = vector2.front().second.first;
+                y = vector2.front().second.second;
+                vector2.pop();
+            } else if (done_cnt2 == end_sign2 && vector2.empty()) {
+                break;  // 没有任务并且 producer2 已完成
+            }
+        }
+
+        if (cutObjY) {
+            for (int k = 1; k <= numStepsZ; k++) {
                 float z = minPoint.z + k * stepSize;
                 Plane plane3 = Plane(Vector3(x, y, z), Vector3(0, 0, -1));
                 ObjCutter* cutObj = cutObjY->cut(plane3);
 
                 string fileName = outputDir + std::to_string((int)x) + "_" + std::to_string((int)y) + "_" + std::to_string((int)z) + ".obj";
-                if (cutObj && !cutObj->empty())
-                {
-                    cout << endl;
+                if (cutObj && !cutObj->empty()) {
                     cutObj->save(fileName);
                 }
                 delete cutObj;
@@ -88,86 +134,82 @@ void splitObj(const string& objPath, float stepSize, const string& outputDir)
                 Plane plane3OtherSide = Plane(Vector3(x, y, z), Vector3(0, 0, 1));
                 cutObjY = cutObjY->cut(plane3OtherSide);
                 delete oldCutObjY;
+
             }
-            delete cutObjY;
         }
-        delete cutObjX;
+        delete cutObjY;
     }
-
-    // ObjCutter* tempObj = &objCutter;
-    // for (int i = 1; i <= numStepsX; i++)
-    // {
-    //     ObjCutter* cutObjX;
-    //     auto oldTempObj = tempObj;
-    //     float x = minPoint.x + i * stepSize;
-    //     Plane plane = Plane(Vector3(x, minPoint.y, minPoint.z), Vector3(-1, 0, 0));
-    //     tempObj->cut(plane, cutObjX, tempObj);
-    //     if (i > 1)
-    //         delete oldTempObj;
-
-    //     for (int j = 1; j <= numStepsY; j++)
-    //     {
-    //         ObjCutter* cutObjY;
-    //         auto oldCutObjX = cutObjX;
-    //         float y = minPoint.y + j * stepSize;
-    //         Plane plane2 = Plane(Vector3(x, y, minPoint.z), Vector3(0, -1, 0));
-    //         cutObjX->cut(plane2, cutObjY, cutObjX);
-    //         delete oldCutObjX;
-
-    //         for (int k = 1; k <= numStepsZ; k++)
-    //         {
-    //             ObjCutter* cutObj;
-    //             auto oldCutObjY = cutObjY;
-    //             float z = minPoint.z + k * stepSize;
-    //             Plane plane3 = Plane(Vector3(x, y, z), Vector3(0, 0, -1));
-    //             cutObjY->cut(plane3, cutObj, cutObjY);
-
-    //             string fileName = outputDir + std::to_string((int)x) + "_" + std::to_string((int)y) + "_" + std::to_string((int)z) + ".obj";
-    //             if (cutObj && !cutObj->empty())
-    //             {
-    //                 cout << endl;
-    //                 cutObj->save(fileName);
-    //             }
-    //             delete cutObj;
-
-    //             delete oldCutObjY;
-    //         }
-    //         delete cutObjY;
-    //     }
-    //     delete cutObjX;
-    // }
 }
 
-// void copy_file(string src, string dest) {
-//     FILE* src_file = _wfopen(string_to_wstring(src).c_str(), L"r");
-//     if (src_file == NULL) {
-//         perror("Unable to open source file.");
-//         return;
-//     }
+void splitObj(const string& objPath, float stepSize, const string& outputDir)
+{
+    ObjCutter objCutter;
+    bool success = objCutter.load(objPath);
+    if (!success)
+    {
+        std::cout << "Failed to load OBJ file." << std::endl;
+        return;
+    }
+    objCutter.info();
 
-//     FILE *dest_file = _wfopen(string_to_wstring(dest).c_str(), L"w");
-//     if (dest_file == NULL) {
-//         perror("Unable to create target file.");
-//         fclose(src_file);
-//         return;
-//     }
+    Vector3 minPoint = objCutter.getMinPoint();
+    Vector3 maxPoint = objCutter.getMaxPoint();
+    std::cout << "minPoint: " << minPoint << std::endl;
+    std::cout << "maxPoint: " << maxPoint << std::endl;
+    minPoint.x = std::floor(minPoint.x / stepSize) * stepSize;
+    minPoint.y = std::floor(minPoint.y / stepSize) * stepSize;
+    minPoint.z = std::floor(minPoint.z / stepSize) * stepSize;
+    maxPoint.x = std::ceil(maxPoint.x / stepSize) * stepSize;
+    maxPoint.y = std::ceil(maxPoint.y / stepSize) * stepSize;
+    maxPoint.z = std::ceil(maxPoint.z / stepSize) * stepSize;
+    std::cout << "minPoint: " << minPoint << std::endl;
+    std::cout << "maxPoint: " << maxPoint << std::endl;
+    int numStepsX = (maxPoint.x - minPoint.x) / stepSize;
+    int numStepsY = (maxPoint.y - minPoint.y) / stepSize;
+    int numStepsZ = (maxPoint.z - minPoint.z) / stepSize;
+    std::cout << "numStepsX: " << numStepsX << std::endl;
+    std::cout << "numStepsY: " << numStepsY << std::endl;
+    std::cout << "numStepsZ: " << numStepsZ << std::endl;
 
-//     char buffer[1024];
-//     size_t bytes;
-//     while ((bytes = fread(buffer, 1, sizeof(buffer), src_file)) > 0) {
-//         fwrite(buffer, 1, bytes, dest_file);
-//     }
+    SYSTEM_INFO sysInfo;
+    GetSystemInfo(&sysInfo);
+    end_sign1 = 1;
+    end_sign2 = numStepsX;
 
-//     fclose(src_file);
-//     fclose(dest_file);
-// }
+    auto begin = std::chrono::system_clock::now();
 
-std::wstring string_to_wstring(const std::string& str);
+    std::thread producer1Thread(producer1, &objCutter, numStepsX, minPoint.x, stepSize, minPoint, maxPoint);
 
+    std::vector<std::thread> producer2Threads;
+    for (int i = 0; i < sysInfo.dwNumberOfProcessors / 2; ++i) {
+        producer2Threads.emplace_back(producer2, numStepsY, minPoint.x, minPoint.y, stepSize, minPoint, maxPoint);
+    }
+
+    std::vector<std::thread> producer3Threads;
+    for (int i = 0; i < sysInfo.dwNumberOfProcessors / 2; ++i) {
+        producer3Threads.emplace_back(producer3, numStepsZ, minPoint.x, minPoint.y, minPoint.z, stepSize, minPoint, maxPoint, outputDir);
+    }
+
+    producer1Thread.join();
+
+    for (auto& t : producer2Threads) {
+        t.join();
+    }
+
+    for (auto& t : producer3Threads) {
+        t.join();
+    }
+
+    std::chrono::duration<double> cut_spend_time = std::chrono::system_clock::now() - begin;
+    std::cout << "The cutting process takes " << cut_spend_time.count() << "s" << std::endl;
+}
+
+// 复制文件
 void copy_file(const std::wstring& src, const std::wstring& dest) {
     CopyFileW(src.c_str(), dest.c_str(), FALSE);
 }
 
+// 递归复制文件夹
 void copy_directory(std::wstring wsrc, std::wstring wdest) {
 
     _WDIR *dir = _wopendir(wsrc.c_str());
@@ -228,7 +270,7 @@ int main()
                 if (p2.is_regular_file() && p2.path().extension() == ".obj")
                 {
                     string objPath = p2.path().string();
-                    splitObj(objPath, 150000, outputDirSplited);
+                    splitObj(objPath, 100, outputDirSplited);
                 }
                 else if(p2.is_directory())
                 {
@@ -242,10 +284,10 @@ int main()
                 
             }
             std::chrono::duration<double> cut_spend_time = std::chrono::system_clock::now() - begin;
-            std::cout << endl;
-            std::cout << "finished: " << pStr << " to " << outputDirSplited << endl;
-            std::cerr << "finished: " << pStr << " to " << outputDirSplited << endl;
-            std::cout << "The cutting process takes " << cut_spend_time.count() << "s" << endl;
+            std::cout << std::endl;
+            std::cout << "finished: " << pStr << " to " << outputDirSplited << std::endl;
+            std::cerr << "finished: " << pStr << " to " << outputDirSplited << std::endl;
+            std::cout << "The whole process takes " << cut_spend_time.count() << "s" << std::endl;
         }
     }
     // string targetDir = "D:/BlockYAYX";

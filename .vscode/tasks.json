@@ -12,8 +12,8 @@
                 "${workspaceFolder}/Types.cpp",
                 "-o",
                 "${workspaceFolder}/output.exe",
-                "-std=c++17",
-                "-lstdc++fs"
+                "-std=c++20",
+                "-lstdc++fs",
             ],
             "options": {
                 "cwd": "${workspaceFolder}"

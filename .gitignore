@@ -2,3 +2,5 @@ cmake-build-debug
 .idea
 terra_obj/
 splited_obj/
+out/
+obj模型/

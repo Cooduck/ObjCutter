@@ -61,7 +61,14 @@
         "variant": "cpp",
         "cstring": "cpp",
         "cinttypes": "cpp",
-        "filesystem": "cpp"
+        "filesystem": "cpp",
+        "semaphore": "cpp",
+        "future": "cpp",
+        "stop_token": "cpp",
+        "condition_variable": "cpp",
+        "mutex": "cpp",
+        "thread": "cpp",
+        "locale": "cpp"
     }
     
 }
