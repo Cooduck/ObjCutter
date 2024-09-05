@@ -29,15 +29,13 @@ std::queue<std::pair<ObjCutter*, std::pair<float, float>>> vector2;
 
 void producer1(ObjCutter* objCutter, int numStepsX, float minX, float stepSize, Vector3 minPoint, Vector3 maxPoint) {
     for (int i = 1; i <= numStepsX; i++) {
+        ObjCutter* cutObjX;
+        auto oldTempObj = objCutter;
         float x = minPoint.x + i * stepSize;
         Plane plane = Plane(Vector3(x, minPoint.y, minPoint.z), Vector3(-1, 0, 0));
-        ObjCutter* cutObjX = objCutter->cut(plane);
-        Plane planeOtherSide = Plane(Vector3(x, maxPoint.y, minPoint.z), Vector3(1, 0, 0));
-        auto oldTempObj = objCutter;
-        objCutter = objCutter->cut(planeOtherSide);
-        if(i > 1){
+        objCutter->cut(plane, cutObjX, objCutter);
+        if (i > 1)
             delete oldTempObj;
-        }
 
         {
             std::unique_lock<std::mutex> lock(mtx1);
@@ -74,12 +72,11 @@ void producer2(int numStepsY, float minX, float minY, float stepSize, Vector3 mi
 
         if (cutObjX) {
             for (int j = 1; j <= numStepsY; j++) {
+                ObjCutter* cutObjY;
+                auto oldCutObjX = cutObjX;
                 float y = minPoint.y + j * stepSize;
                 Plane plane2 = Plane(Vector3(x, y, minPoint.z), Vector3(0, -1, 0));
-                ObjCutter* cutObjY = cutObjX->cut(plane2);
-                auto oldCutObjX = cutObjX;
-                Plane plane2OtherSide = Plane(Vector3(x, y, maxPoint.z), Vector3(0, 1, 0));
-                cutObjX = cutObjX->cut(plane2OtherSide);
+                cutObjX->cut(plane2, cutObjY, cutObjX);
                 delete oldCutObjX;
 
                 {
@@ -120,19 +117,19 @@ void producer3(int numStepsZ, float minX, float minY, float minZ, float stepSize
 
         if (cutObjY) {
             for (int k = 1; k <= numStepsZ; k++) {
+                ObjCutter* cutObj;
+                auto oldCutObjY = cutObjY;
                 float z = minPoint.z + k * stepSize;
                 Plane plane3 = Plane(Vector3(x, y, z), Vector3(0, 0, -1));
-                ObjCutter* cutObj = cutObjY->cut(plane3);
+                cutObjY->cut(plane3, cutObj, cutObjY);
 
                 string fileName = outputDir + std::to_string((int)x) + "_" + std::to_string((int)y) + "_" + std::to_string((int)z) + ".obj";
-                if (cutObj && !cutObj->empty()) {
+                if (cutObj && !cutObj->empty())
+                {
                     cutObj->save(fileName);
                 }
                 delete cutObj;
 
-                auto oldCutObjY = cutObjY;
-                Plane plane3OtherSide = Plane(Vector3(x, y, z), Vector3(0, 0, 1));
-                cutObjY = cutObjY->cut(plane3OtherSide);
                 delete oldCutObjY;
 
             }
