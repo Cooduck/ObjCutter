@@ -29,13 +29,15 @@ std::queue<std::pair<ObjCutter*, std::pair<float, float>>> vector2;
 
 void producer1(ObjCutter* objCutter, int numStepsX, float minX, float stepSize, Vector3 minPoint, Vector3 maxPoint) {
     for (int i = 1; i <= numStepsX; i++) {
-        ObjCutter* cutObjX;
-        auto oldTempObj = objCutter;
         float x = minPoint.x + i * stepSize;
         Plane plane = Plane(Vector3(x, minPoint.y, minPoint.z), Vector3(-1, 0, 0));
-        objCutter->cut(plane, cutObjX, objCutter);
-        if (i > 1)
+        ObjCutter* cutObjX = objCutter->cut(plane);
+        Plane planeOtherSide = Plane(Vector3(x, maxPoint.y, minPoint.z), Vector3(1, 0, 0));
+        auto oldTempObj = objCutter;
+        objCutter = objCutter->cut(planeOtherSide);
+        if(i > 1){
             delete oldTempObj;
+        }
 
         {
             std::unique_lock<std::mutex> lock(mtx1);
@@ -56,7 +58,7 @@ void producer2(int numStepsY, float minX, float minY, float stepSize, Vector3 mi
     while (true) {
         ObjCutter* cutObjX = nullptr;
         float x;
-        
+
         {
             std::unique_lock<std::mutex> lock(mtx1);
             cv1.wait(lock, [&] { return !vector1.empty() || done_cnt1 == end_sign1; });
@@ -72,11 +74,12 @@ void producer2(int numStepsY, float minX, float minY, float stepSize, Vector3 mi
 
         if (cutObjX) {
             for (int j = 1; j <= numStepsY; j++) {
-                ObjCutter* cutObjY;
-                auto oldCutObjX = cutObjX;
                 float y = minPoint.y + j * stepSize;
                 Plane plane2 = Plane(Vector3(x, y, minPoint.z), Vector3(0, -1, 0));
-                cutObjX->cut(plane2, cutObjY, cutObjX);
+                ObjCutter* cutObjY = cutObjX->cut(plane2);
+                auto oldCutObjX = cutObjX;
+                Plane plane2OtherSide = Plane(Vector3(x, y, maxPoint.z), Vector3(0, 1, 0));
+                cutObjX = cutObjX->cut(plane2OtherSide);
                 delete oldCutObjX;
 
                 {
@@ -117,19 +120,19 @@ void producer3(int numStepsZ, float minX, float minY, float minZ, float stepSize
 
         if (cutObjY) {
             for (int k = 1; k <= numStepsZ; k++) {
-                ObjCutter* cutObj;
-                auto oldCutObjY = cutObjY;
                 float z = minPoint.z + k * stepSize;
                 Plane plane3 = Plane(Vector3(x, y, z), Vector3(0, 0, -1));
-                cutObjY->cut(plane3, cutObj, cutObjY);
+                ObjCutter* cutObj = cutObjY->cut(plane3);
 
                 string fileName = outputDir + std::to_string((int)x) + "_" + std::to_string((int)y) + "_" + std::to_string((int)z) + ".obj";
-                if (cutObj && !cutObj->empty())
-                {
+                if (cutObj && !cutObj->empty()) {
                     cutObj->save(fileName);
                 }
                 delete cutObj;
 
+                auto oldCutObjY = cutObjY;
+                Plane plane3OtherSide = Plane(Vector3(x, y, z), Vector3(0, 0, 1));
+                cutObjY = cutObjY->cut(plane3OtherSide);
                 delete oldCutObjY;
 
             }
@@ -137,6 +140,69 @@ void producer3(int numStepsZ, float minX, float minY, float minZ, float stepSize
         delete cutObjY;
     }
 }
+
+// void splitObj(const string& objPath, float stepSize, const string& outputDir)
+// {
+//     ObjCutter objCutter;
+//     bool success = objCutter.load(objPath);
+//     if (!success)
+//     {
+//         std::cout << "Failed to load OBJ file." << std::endl;
+//         return;
+//     }
+//     objCutter.info();
+
+//     Vector3 minPoint = objCutter.getMinPoint();
+//     Vector3 maxPoint = objCutter.getMaxPoint();
+//     std::cout << "minPoint: " << minPoint << std::endl;
+//     std::cout << "maxPoint: " << maxPoint << std::endl;
+//     minPoint.x = std::floor(minPoint.x / stepSize) * stepSize;
+//     minPoint.y = std::floor(minPoint.y / stepSize) * stepSize;
+//     minPoint.z = std::floor(minPoint.z / stepSize) * stepSize;
+//     maxPoint.x = std::ceil(maxPoint.x / stepSize) * stepSize;
+//     maxPoint.y = std::ceil(maxPoint.y / stepSize) * stepSize;
+//     maxPoint.z = std::ceil(maxPoint.z / stepSize) * stepSize;
+//     std::cout << "minPoint: " << minPoint << std::endl;
+//     std::cout << "maxPoint: " << maxPoint << std::endl;
+//     int numStepsX = (maxPoint.x - minPoint.x) / stepSize;
+//     int numStepsY = (maxPoint.y - minPoint.y) / stepSize;
+//     int numStepsZ = (maxPoint.z - minPoint.z) / stepSize;
+//     std::cout << "numStepsX: " << numStepsX << std::endl;
+//     std::cout << "numStepsY: " << numStepsY << std::endl;
+//     std::cout << "numStepsZ: " << numStepsZ << std::endl;
+
+//     SYSTEM_INFO sysInfo;
+//     GetSystemInfo(&sysInfo);
+//     end_sign1 = 1;
+//     end_sign2 = numStepsX;
+
+//     auto begin = std::chrono::system_clock::now();
+
+//     std::thread producer1Thread(producer1, &objCutter, numStepsX, minPoint.x, stepSize, minPoint, maxPoint);
+
+//     std::vector<std::thread> producer2Threads;
+//     for (int i = 0; i < sysInfo.dwNumberOfProcessors / 2; ++i) {
+//         producer2Threads.emplace_back(producer2, numStepsY, minPoint.x, minPoint.y, stepSize, minPoint, maxPoint);
+//     }
+
+//     std::vector<std::thread> producer3Threads;
+//     for (int i = 0; i < sysInfo.dwNumberOfProcessors / 2; ++i) {
+//         producer3Threads.emplace_back(producer3, numStepsZ, minPoint.x, minPoint.y, minPoint.z, stepSize, minPoint, maxPoint, outputDir);
+//     }
+
+//     producer1Thread.join();
+
+//     for (auto& t : producer2Threads) {
+//         t.join();
+//     }
+
+//     for (auto& t : producer3Threads) {
+//         t.join();
+//     }
+
+//     std::chrono::duration<double> cut_spend_time = std::chrono::system_clock::now() - begin;
+//     std::cout << "The cutting process takes " << cut_spend_time.count() << "s" << std::endl;
+// }
 
 void splitObj(const string& objPath, float stepSize, const string& outputDir)
 {
@@ -168,38 +234,49 @@ void splitObj(const string& objPath, float stepSize, const string& outputDir)
     std::cout << "numStepsY: " << numStepsY << std::endl;
     std::cout << "numStepsZ: " << numStepsZ << std::endl;
 
-    SYSTEM_INFO sysInfo;
-    GetSystemInfo(&sysInfo);
-    end_sign1 = 1;
-    end_sign2 = numStepsX;
+    ObjCutter* tempObj = &objCutter;
+    for (int i = 1; i <= numStepsX; i++)
+    {
+        auto oldTempObj = tempObj;
+        float x = minPoint.x + i * stepSize;
+        Plane plane = Plane(Vector3(x, minPoint.y, minPoint.z), Vector3(-1, 0, 0));
+        ObjCutter* cutObjX = tempObj->cut(plane);
+        Plane planeOtherSide = Plane(Vector3(x, maxPoint.y, minPoint.z), Vector3(1, 0, 0));
+        tempObj = tempObj->cut(planeOtherSide);
+        if (i > 1)
+            delete oldTempObj;
+        for (int j = 1; j <= numStepsY; j++)
+        {
+            float y = minPoint.y + j * stepSize;
+            Plane plane2 = Plane(Vector3(x, y, minPoint.z), Vector3(0, -1, 0));
+            ObjCutter* cutObjY = cutObjX->cut(plane2);
 
-    auto begin = std::chrono::system_clock::now();
-
-    std::thread producer1Thread(producer1, &objCutter, numStepsX, minPoint.x, stepSize, minPoint, maxPoint);
-
-    std::vector<std::thread> producer2Threads;
-    for (int i = 0; i < sysInfo.dwNumberOfProcessors / 2; ++i) {
-        producer2Threads.emplace_back(producer2, numStepsY, minPoint.x, minPoint.y, stepSize, minPoint, maxPoint);
+            auto oldCutObjX = cutObjX;
+            Plane plane2OtherSide = Plane(Vector3(x, y, maxPoint.z), Vector3(0, 1, 0));
+            cutObjX = cutObjX->cut(plane2OtherSide);
+            delete oldCutObjX;
+            for (int k = 1; k <= numStepsZ; k++)
+            {
+                float z = minPoint.z + k * stepSize;
+                Plane plane3 = Plane(Vector3(x, y, z), Vector3(0, 0, -1));
+                ObjCutter* cutObj = cutObjY->cut(plane3);
+                string fileName = outputDir + std::to_string((int)x) + "_" + std::to_string((int)y) + "_" + std::to_string((int)z) + ".obj";
+                if (cutObj && !cutObj->empty())
+                {
+                    cutObj->save(fileName);
+                }
+                delete cutObj;
+                auto oldCutObjY = cutObjY;
+                Plane plane3OtherSide = Plane(Vector3(x, y, z), Vector3(0, 0, 1));
+                cutObjY = cutObjY->cut(plane3OtherSide);
+                delete oldCutObjY;
+            }
+            delete cutObjY;
+        }
+        delete cutObjX;
     }
-
-    std::vector<std::thread> producer3Threads;
-    for (int i = 0; i < sysInfo.dwNumberOfProcessors / 2; ++i) {
-        producer3Threads.emplace_back(producer3, numStepsZ, minPoint.x, minPoint.y, minPoint.z, stepSize, minPoint, maxPoint, outputDir);
-    }
-
-    producer1Thread.join();
-
-    for (auto& t : producer2Threads) {
-        t.join();
-    }
-
-    for (auto& t : producer3Threads) {
-        t.join();
-    }
-
-    std::chrono::duration<double> cut_spend_time = std::chrono::system_clock::now() - begin;
-    std::cout << "The cutting process takes " << cut_spend_time.count() << "s" << std::endl;
 }
+
 
 // 复制文件
 void copy_file(const std::wstring& src, const std::wstring& dest) {
@@ -267,7 +344,7 @@ int main()
                 if (p2.is_regular_file() && p2.path().extension() == ".obj")
                 {
                     string objPath = p2.path().string();
-                    splitObj(objPath, 100, outputDirSplited);
+                    splitObj(objPath, 10000, outputDirSplited);
                 }
                 else if(p2.is_directory())
                 {

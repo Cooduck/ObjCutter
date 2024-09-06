@@ -294,270 +294,270 @@ bool ObjModel::load(const std::string& filename)
 
     cout << "Loading " << filename << "..." << endl;
 
-    auto processMtllib = [&]() {
-        FILE* file1 = _wfopen(open_file.c_str(), L"r");
-        char buffer[1024];
-        while (fgets(buffer, sizeof(buffer), file1)){
-            char type[100];
-            sscanf(buffer, "%s", type);
-            if (strcmp(type, "mtllib") == 0){
-                char mtllibBuff[200];
-                sscanf(buffer, "mtllib %[^\n]", mtllibBuff);
-                mtllib = string(mtllibBuff);
-                mtllib.erase(mtllib.find_last_not_of('\n') + 1);
-            }
-            else{
-                continue;
-            }
-        }
-        fclose(file1);
-    };
-
-    auto processPoint = [&]() {
-        FILE* file2 = _wfopen(open_file.c_str(), L"r");
-        char buffer[1024];
-        while (fgets(buffer, sizeof(buffer), file2)){
-            char type[100];
-            sscanf(buffer, "%s", type);
-            if (strcmp(type, "v") == 0){
-                Vector3 point{};
-                sscanf(buffer, "v %f %f %f", &point.x, &point.y, &point.z);
-                minX = point.x < minX ? point.x : minX;
-                minY = point.y < minY ? point.y : minY;
-                minZ = point.z < minZ ? point.z : minZ;
-                maxX = point.x > maxX ? point.x : maxX;
-                maxY = point.y > maxY ? point.y : maxY;
-                maxZ = point.z > maxZ ? point.z : maxZ;
-                points.push_back(point);
-            }
-            else{
-                continue;
-            }
-        }
-        fclose(file2);
-    };
-
-    auto processTexturePoint = [&]() {
-        FILE* file3 = _wfopen(open_file.c_str(), L"r");
-        char buffer[1024];
-        while (fgets(buffer, sizeof(buffer), file3)){
-            char type[100];
-            sscanf(buffer, "%s", type);
-            if (strcmp(type, "vt") == 0){
-                Vector2 point{};
-                sscanf(buffer, "vt %f %f", &point.x, &point.y);
-                texturePoints.emplace_back(point.x, point.y);
-            }
-            else{
-                continue;
-            }
-        }
-        fclose(file3);
-    };
-
-    auto processNormal = [&]() {
-        FILE* file4 = _wfopen(open_file.c_str(), L"r");
-        char buffer[1024];
-        while (fgets(buffer, sizeof(buffer), file4)){
-            char type[100];
-            sscanf(buffer, "%s", type);
-            if (strcmp(type, "vn") == 0){
-                Vector3 normal{};
-                sscanf(buffer, "vn %f %f %f", &normal.x, &normal.y, &normal.z);
-                normals.push_back(normal);
-            }
-            else{
-                continue;
-            }
-        }
-        fclose(file4);
-    };
-
-    auto processUsemtlandF = [&]() {
-        FILE* file5 = _wfopen(open_file.c_str(), L"r");
-        char buffer[1024];
-        while (fgets(buffer, sizeof(buffer), file5)){
-            char type[100];
-            sscanf(buffer, "%s", type);
-            if (strcmp(type, "usemtl") == 0){
-                char mtlBuff[200];
-                sscanf(buffer, "usemtl %[^\n]", mtlBuff);
-                MtlFaces facesNow;
-                facesNow.mtl = string(mtlBuff);
-                facesNow.mtl.erase(facesNow.mtl.find_last_not_of('\n') + 1);
-                faces.push_back(facesNow);
-            }
-            else if (strcmp(type, "f") == 0){
-                std::vector<int> v, t, n;
-
-                char vtnAllBuff[300];
-                sscanf(buffer, "f%[^\n]", vtnAllBuff);
-                int spaceCount = std::count(vtnAllBuff, vtnAllBuff + strlen(vtnAllBuff), ' ');
-                string regex = "%d/%d/%d";
-
-                char *ptr = vtnAllBuff;
-                for (int i = 0; i < spaceCount; i++)
-                {
-                    ptr += strcspn(ptr, " ") + 1;
-                    int a, b, c;
-                    // 用regex不断读取vtnAllBuff的数字
-                    int ret= sscanf(ptr, regex.c_str(), &a, &b, &c);
-                    if (ret >= 1)
-                        v.push_back(a);
-                    if (ret >= 2)
-                        t.push_back(b);
-                    if (ret >= 3)
-                        n.push_back(c);
-                }
-
-                int lenth = v.size();
-                for (int i = 0; i <= lenth - 3; i++)
-                {
-                    Face newFace;
-                    newFace.v1 = v[0];
-                    newFace.v2 = v[i + 1];
-                    newFace.v3 = v[i + 2];
-                    if (t.size() > 0)
-                    {
-                        newFace.t1 = t[0];
-                        newFace.t2 = t[i + 1];
-                        newFace.t3 = t[i + 2];
-                    }
-                    if (n.size() > 0)
-                    {
-                        newFace.n1 = n[0];
-                        newFace.n2 = n[i + 1];
-                        newFace.n3 = n[i + 2];
-                    }
-                    faces.push_back(newFace);
-                }
-            }
-            else{
-                continue;
-            }
-        }
-        fclose(file5);
-    };
-
-    auto future1 = std::async(std::launch::async, processUsemtlandF);
-    auto future2 = std::async(std::launch::async, processMtllib);
-    auto future3 = std::async(std::launch::async, processPoint);
-    auto future4 = std::async(std::launch::async, processTexturePoint);
-    auto future5 = std::async(std::launch::async, processNormal);
-
-    // 等待所有线程完成
-    future1.get();
-    future2.get();
-    future3.get();
-    future4.get();
-    future5.get();
-
-    // char buffer[1024];
-    // while (fgets(buffer, sizeof(buffer), file))
-    // {
-    //     char type[100];
-    //     sscanf(buffer, "%s", type);
-    //     if (strcmp(type, "mtllib") == 0)
-    //     {
-    //         char mtllibBuff[200];
-    //         // fgets(mtllibBuff, sizeof(mtllibBuff), file);
-    //         sscanf(buffer, "mtllib %[^\n]", mtllibBuff);
-    //         mtllib = string(mtllibBuff);
-    //         mtllib.erase(mtllib.find_last_not_of('\n') + 1);
-    //     }
-    //     else if (strcmp(type, "v") == 0)
-    //     {
-    //         Vector3 point{};
-    //         sscanf(buffer, "v %f %f %f", &point.x, &point.y, &point.z);
-    //         minX = point.x < minX ? point.x : minX;
-    //         minY = point.y < minY ? point.y : minY;
-    //         minZ = point.z < minZ ? point.z : minZ;
-    //         maxX = point.x > maxX ? point.x : maxX;
-    //         maxY = point.y > maxY ? point.y : maxY;
-    //         maxZ = point.z > maxZ ? point.z : maxZ;
-    //         points.push_back(point);
-    //     }
-    //     else if (strcmp(type, "vt") == 0)
-    //     {
-    //         Vector2 point{};
-    //         sscanf(buffer, "vt %f %f", &point.x, &point.y);
-    //         texturePoints.emplace_back(point.x, point.y);
-    //     }
-    //     else if (strcmp(type, "vn") == 0)
-    //     {
-    //         Vector3 normal{};
-    //         sscanf(buffer, "vn %f %f %f", &normal.x, &normal.y, &normal.z);
-    //         normals.push_back(normal);
-    //     }
-    //     else if (strcmp(type, "usemtl") == 0)
-    //     {
-    //         char mtlBuff[200];
-    //         sscanf(buffer, "usemtl %[^\n]", mtlBuff);
-    //         MtlFaces facesNow;
-    //         facesNow.mtl = string(mtlBuff);
-    //         facesNow.mtl.erase(facesNow.mtl.find_last_not_of('\n') + 1);
-    //         faces.push_back(facesNow);
-    //     }
-    //     else if (strcmp(type, "f") == 0)
-    //     {
-    //         std::vector<int> v, t, n;
-
-    //         char vtnAllBuff[300];
-    //         sscanf(buffer, "f%[^\n]", vtnAllBuff);
-    //         int spaceCount = std::count(vtnAllBuff, vtnAllBuff + strlen(vtnAllBuff), ' ');
-    //         string regex = "%d/%d/%d";
-
-    //         char *ptr = vtnAllBuff;
-    //         for (int i = 0; i < spaceCount; i++)
-    //         {
-    //             ptr += strcspn(ptr, " ") + 1;
-    //             int a, b, c;
-    //             // 用regex不断读取vtnAllBuff的数字
-    //             int ret= sscanf(ptr, regex.c_str(), &a, &b, &c);
-    //             if (ret >= 1)
-    //                 v.push_back(a);
-    //             if (ret >= 2)
-    //                 t.push_back(b);
-    //             if (ret >= 3)
-    //                 n.push_back(c);
+    // auto processMtllib = [&]() {
+    //     FILE* file1 = _wfopen(open_file.c_str(), L"r");
+    //     char buffer[1024];
+    //     while (fgets(buffer, sizeof(buffer), file1)){
+    //         char type[100];
+    //         sscanf(buffer, "%s", type);
+    //         if (strcmp(type, "mtllib") == 0){
+    //             char mtllibBuff[200];
+    //             sscanf(buffer, "mtllib %[^\n]", mtllibBuff);
+    //             mtllib = string(mtllibBuff);
+    //             mtllib.erase(mtllib.find_last_not_of('\n') + 1);
     //         }
-
-
-    //         int lenth = v.size();
-    //         for (int i = 0; i <= lenth - 3; i++)
-    //         {
-    //             Face newFace;
-    //             newFace.v1 = v[0];
-    //             newFace.v2 = v[i + 1];
-    //             newFace.v3 = v[i + 2];
-    //             if (t.size() > 0)
-    //             {
-    //                 newFace.t1 = t[0];
-    //                 newFace.t2 = t[i + 1];
-    //                 newFace.t3 = t[i + 2];
-    //             }
-    //             if (n.size() > 0)
-    //             {
-    //                 newFace.n1 = n[0];
-    //                 newFace.n2 = n[i + 1];
-    //                 newFace.n3 = n[i + 2];
-    //             }
-    //             faces.push_back(newFace);
+    //         else{
+    //             continue;
     //         }
     //     }
-    //     else
-    //     {
-    //         if(type[0] == '\n')
-    //             continue;
-    //         if (type[0] == '#')
-    //             continue;
-    //         if (strcmp(type, "g") == 0)
-    //             continue;
-    //         std::cout  << "unknown type: " << type << std::endl;
-    //     }
-    // }
+    //     fclose(file1);
+    // };
 
-    // fclose(file);
+    // auto processPoint = [&]() {
+    //     FILE* file2 = _wfopen(open_file.c_str(), L"r");
+    //     char buffer[1024];
+    //     while (fgets(buffer, sizeof(buffer), file2)){
+    //         char type[100];
+    //         sscanf(buffer, "%s", type);
+    //         if (strcmp(type, "v") == 0){
+    //             Vector3 point{};
+    //             sscanf(buffer, "v %f %f %f", &point.x, &point.y, &point.z);
+    //             minX = point.x < minX ? point.x : minX;
+    //             minY = point.y < minY ? point.y : minY;
+    //             minZ = point.z < minZ ? point.z : minZ;
+    //             maxX = point.x > maxX ? point.x : maxX;
+    //             maxY = point.y > maxY ? point.y : maxY;
+    //             maxZ = point.z > maxZ ? point.z : maxZ;
+    //             points.push_back(point);
+    //         }
+    //         else{
+    //             continue;
+    //         }
+    //     }
+    //     fclose(file2);
+    // };
+
+    // auto processTexturePoint = [&]() {
+    //     FILE* file3 = _wfopen(open_file.c_str(), L"r");
+    //     char buffer[1024];
+    //     while (fgets(buffer, sizeof(buffer), file3)){
+    //         char type[100];
+    //         sscanf(buffer, "%s", type);
+    //         if (strcmp(type, "vt") == 0){
+    //             Vector2 point{};
+    //             sscanf(buffer, "vt %f %f", &point.x, &point.y);
+    //             texturePoints.emplace_back(point.x, point.y);
+    //         }
+    //         else{
+    //             continue;
+    //         }
+    //     }
+    //     fclose(file3);
+    // };
+
+    // auto processNormal = [&]() {
+    //     FILE* file4 = _wfopen(open_file.c_str(), L"r");
+    //     char buffer[1024];
+    //     while (fgets(buffer, sizeof(buffer), file4)){
+    //         char type[100];
+    //         sscanf(buffer, "%s", type);
+    //         if (strcmp(type, "vn") == 0){
+    //             Vector3 normal{};
+    //             sscanf(buffer, "vn %f %f %f", &normal.x, &normal.y, &normal.z);
+    //             normals.push_back(normal);
+    //         }
+    //         else{
+    //             continue;
+    //         }
+    //     }
+    //     fclose(file4);
+    // };
+
+    // auto processUsemtlandF = [&]() {
+    //     FILE* file5 = _wfopen(open_file.c_str(), L"r");
+    //     char buffer[1024];
+    //     while (fgets(buffer, sizeof(buffer), file5)){
+    //         char type[100];
+    //         sscanf(buffer, "%s", type);
+    //         if (strcmp(type, "usemtl") == 0){
+    //             char mtlBuff[200];
+    //             sscanf(buffer, "usemtl %[^\n]", mtlBuff);
+    //             MtlFaces facesNow;
+    //             facesNow.mtl = string(mtlBuff);
+    //             facesNow.mtl.erase(facesNow.mtl.find_last_not_of('\n') + 1);
+    //             faces.push_back(facesNow);
+    //         }
+    //         else if (strcmp(type, "f") == 0){
+    //             std::vector<int> v, t, n;
+
+    //             char vtnAllBuff[300];
+    //             sscanf(buffer, "f%[^\n]", vtnAllBuff);
+    //             int spaceCount = std::count(vtnAllBuff, vtnAllBuff + strlen(vtnAllBuff), ' ');
+    //             string regex = "%d/%d/%d";
+
+    //             char *ptr = vtnAllBuff;
+    //             for (int i = 0; i < spaceCount; i++)
+    //             {
+    //                 ptr += strcspn(ptr, " ") + 1;
+    //                 int a, b, c;
+    //                 // 用regex不断读取vtnAllBuff的数字
+    //                 int ret= sscanf(ptr, regex.c_str(), &a, &b, &c);
+    //                 if (ret >= 1)
+    //                     v.push_back(a);
+    //                 if (ret >= 2)
+    //                     t.push_back(b);
+    //                 if (ret >= 3)
+    //                     n.push_back(c);
+    //             }
+
+    //             int lenth = v.size();
+    //             for (int i = 0; i <= lenth - 3; i++)
+    //             {
+    //                 Face newFace;
+    //                 newFace.v1 = v[0];
+    //                 newFace.v2 = v[i + 1];
+    //                 newFace.v3 = v[i + 2];
+    //                 if (t.size() > 0)
+    //                 {
+    //                     newFace.t1 = t[0];
+    //                     newFace.t2 = t[i + 1];
+    //                     newFace.t3 = t[i + 2];
+    //                 }
+    //                 if (n.size() > 0)
+    //                 {
+    //                     newFace.n1 = n[0];
+    //                     newFace.n2 = n[i + 1];
+    //                     newFace.n3 = n[i + 2];
+    //                 }
+    //                 faces.push_back(newFace);
+    //             }
+    //         }
+    //         else{
+    //             continue;
+    //         }
+    //     }
+    //     fclose(file5);
+    // };
+
+    // auto future1 = std::async(std::launch::async, processUsemtlandF);
+    // auto future2 = std::async(std::launch::async, processMtllib);
+    // auto future3 = std::async(std::launch::async, processPoint);
+    // auto future4 = std::async(std::launch::async, processTexturePoint);
+    // auto future5 = std::async(std::launch::async, processNormal);
+
+    // // 等待所有线程完成
+    // future1.get();
+    // future2.get();
+    // future3.get();
+    // future4.get();
+    // future5.get();
+
+    char buffer[1024];
+    while (fgets(buffer, sizeof(buffer), file))
+    {
+        char type[100];
+        sscanf(buffer, "%s", type);
+        if (strcmp(type, "mtllib") == 0)
+        {
+            char mtllibBuff[200];
+            // fgets(mtllibBuff, sizeof(mtllibBuff), file);
+            sscanf(buffer, "mtllib %[^\n]", mtllibBuff);
+            mtllib = string(mtllibBuff);
+            mtllib.erase(mtllib.find_last_not_of('\n') + 1);
+        }
+        else if (strcmp(type, "v") == 0)
+        {
+            Vector3 point{};
+            sscanf(buffer, "v %f %f %f", &point.x, &point.y, &point.z);
+            minX = point.x < minX ? point.x : minX;
+            minY = point.y < minY ? point.y : minY;
+            minZ = point.z < minZ ? point.z : minZ;
+            maxX = point.x > maxX ? point.x : maxX;
+            maxY = point.y > maxY ? point.y : maxY;
+            maxZ = point.z > maxZ ? point.z : maxZ;
+            points.push_back(point);
+        }
+        else if (strcmp(type, "vt") == 0)
+        {
+            Vector2 point{};
+            sscanf(buffer, "vt %f %f", &point.x, &point.y);
+            texturePoints.emplace_back(point.x, point.y);
+        }
+        else if (strcmp(type, "vn") == 0)
+        {
+            Vector3 normal{};
+            sscanf(buffer, "vn %f %f %f", &normal.x, &normal.y, &normal.z);
+            normals.push_back(normal);
+        }
+        else if (strcmp(type, "usemtl") == 0)
+        {
+            char mtlBuff[200];
+            sscanf(buffer, "usemtl %[^\n]", mtlBuff);
+            MtlFaces facesNow;
+            facesNow.mtl = string(mtlBuff);
+            facesNow.mtl.erase(facesNow.mtl.find_last_not_of('\n') + 1);
+            faces.push_back(facesNow);
+        }
+        else if (strcmp(type, "f") == 0)
+        {
+            std::vector<int> v, t, n;
+
+            char vtnAllBuff[300];
+            sscanf(buffer, "f%[^\n]", vtnAllBuff);
+            int spaceCount = std::count(vtnAllBuff, vtnAllBuff + strlen(vtnAllBuff), ' ');
+            string regex = "%d/%d/%d";
+
+            char *ptr = vtnAllBuff;
+            for (int i = 0; i < spaceCount; i++)
+            {
+                ptr += strcspn(ptr, " ") + 1;
+                int a, b, c;
+                // 用regex不断读取vtnAllBuff的数字
+                int ret= sscanf(ptr, regex.c_str(), &a, &b, &c);
+                if (ret >= 1)
+                    v.push_back(a);
+                if (ret >= 2)
+                    t.push_back(b);
+                if (ret >= 3)
+                    n.push_back(c);
+            }
+
+
+            int lenth = v.size();
+            for (int i = 0; i <= lenth - 3; i++)
+            {
+                Face newFace;
+                newFace.v1 = v[0];
+                newFace.v2 = v[i + 1];
+                newFace.v3 = v[i + 2];
+                if (t.size() > 0)
+                {
+                    newFace.t1 = t[0];
+                    newFace.t2 = t[i + 1];
+                    newFace.t3 = t[i + 2];
+                }
+                if (n.size() > 0)
+                {
+                    newFace.n1 = n[0];
+                    newFace.n2 = n[i + 1];
+                    newFace.n3 = n[i + 2];
+                }
+                faces.push_back(newFace);
+            }
+        }
+        else
+        {
+            if(type[0] == '\n')
+                continue;
+            if (type[0] == '#')
+                continue;
+            if (strcmp(type, "g") == 0)
+                continue;
+            std::cout  << "unknown type: " << type << std::endl;
+        }
+    }
+
+    fclose(file);
     auto end = std::chrono::system_clock::now();
     loadElapsedSeconds = end - now;
     return true;
