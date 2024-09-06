@@ -1,3 +1,0 @@
-D:\msys64\mingw64\bin\cmake.exe -E rm -f CMakeFiles\ObjCutter.dir/objects.a
-D:\msys64\mingw64\bin\ar.exe qc CMakeFiles\ObjCutter.dir/objects.a @CMakeFiles\ObjCutter.dir\objects1.rsp
-D:\msys64\mingw64\bin\g++.exe -g -Wl,--whole-archive CMakeFiles\ObjCutter.dir/objects.a -Wl,--no-whole-archive -o ObjCutter.exe -Wl,--out-implib,libObjCutter.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles\ObjCutter.dir\linkLibs.rsp

@@ -1,3 +1,0 @@
-C:/Users/12569/Desktop/ObjCutter/ObjCutter/out/build/ObjCutter/CMakeFiles/ObjCutter.dir
-C:/Users/12569/Desktop/ObjCutter/ObjCutter/out/build/ObjCutter/CMakeFiles/edit_cache.dir
-C:/Users/12569/Desktop/ObjCutter/ObjCutter/out/build/ObjCutter/CMakeFiles/rebuild_cache.dir

@@ -1,0 +1,43 @@
+Loading .\terra_obj\05-景兴海上大厦\05-景兴海上大厦.obj...
+
+Total Lines: 215264
+Points: 49648
+Texture Points: 38760
+Normals: 49648
+Faces: 77206
+Min X Y Z: 97808.6 5.8761 -19028.2
+Max X Y Z: 97884.1 250.492 -18742.8
+File Dir: .\terra_obj\05-景兴海上大厦\
+Load 05-景兴海上大厦.obj in 0.282338s
+
+minPoint: 97808.6 5.8761 -19028.2
+maxPoint: 97884.1 250.492 -18742.8
+minPoint: 97800 0 -19100
+maxPoint: 97900 300 -18700
+numStepsX: 1
+numStepsY: 3
+numStepsZ: 4
+Save .\test_out05-景兴海上大厦\97900_100_-19000.obj in 0.0986185s
+Total 11232 points, 3707 texture points, 5820 normals, 16010 faces.
+Save .\test_out05-景兴海上大厦\97900_200_-19000.obj in 0.007353s
+Total 799 points, 1223 texture points, 287 normals, 790 faces.
+Save .\test_out05-景兴海上大厦\97900_300_-19000.obj in 0.0436495s
+Total 3410 points, 7095 texture points, 2796 normals, 4546 faces.
+Save .\test_out05-景兴海上大厦\97900_300_-18900.obj in 0.0587891s
+Total 4162 points, 8717 texture points, 3471 normals, 5607 faces.
+Save .\test_out05-景兴海上大厦\97900_200_-18900.obj in 0.0683583s
+Total 5632 points, 10892 texture points, 4364 normals, 7158 faces.
+Save .\test_out05-景兴海上大厦\97900_100_-18900.obj in 0.136381s
+Total 15957 points, 5954 texture points, 8178 normals, 22600 faces.
+Save .\test_out05-景兴海上大厦\97900_200_-18800.obj in 0.0873491s
+Total 8519 points, 13827 texture points, 6000 normals, 11123 faces.
+Save .\test_out05-景兴海上大厦\97900_100_-18800.obj in 0.067981s
+Total 8697 points, 5997 texture points, 4014 normals, 11361 faces.
+Save .\test_out05-景兴海上大厦\97900_200_-18700.obj in 0.0549134s
+Total 7227 points, 4343 texture points, 2635 normals, 9492 faces.
+Save .\test_out05-景兴海上大厦\97900_100_-18700.obj in 0.0939697s
+Total 11199 points, 6747 texture points, 3780 normals, 15543 faces.
+The cutting process takes 1.66938s
+
+finished: .\terra_obj\05-景兴海上大厦 to .\test_out05-景兴海上大厦\
+The whole process takes 1.95487s
