@@ -37,6 +37,12 @@ std::wstring string_to_wstring(const std::string& str) {
     return converter.from_bytes(str);
 }
 
+
+std::string wstring_to_string(const std::wstring& wstr) {
+    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
+    return converter.to_bytes(wstr);
+}
+
 bool normalize_vt(const std::string& inputfile, const std::string& outputfile)
 {
     FILE* Inputfile = _wfopen(string_to_wstring(inputfile).c_str(), L"r");

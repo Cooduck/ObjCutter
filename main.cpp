@@ -14,11 +14,13 @@
 #include <semaphore>
 #include <queue>
 #include <utility>
+#include <io.h>
 
 #include "Const.h"
 #include "ObjCutter.h"
 
 std::wstring string_to_wstring(const std::string& str);
+std::string wstring_to_string(const std::wstring& ws);
 
 std::mutex mtx1, mtx2;
 std::condition_variable cv1, cv2;
@@ -167,13 +169,6 @@ void splitObj(const std::string& objPath, int x_block_num, int y_block_num, int 
     float y_stepSize = std::ceil(y_len / y_block_num);
     float z_len = std::abs(maxPoint.z - minPoint.z);
     float z_stepSize = std::ceil(z_len / z_block_num);
-
-    // minPoint.x = std::floor(minPoint.x / stepSize) * stepSize;
-    // minPoint.y = std::floor(minPoint.y / stepSize) * stepSize;
-    // minPoint.z = std::floor(minPoint.z / stepSize) * stepSize;
-    // maxPoint.x = std::ceil(maxPoint.x / stepSize) * stepSize;
-    // maxPoint.y = std::ceil(maxPoint.y / stepSize) * stepSize;
-    // maxPoint.z = std::ceil(maxPoint.z / stepSize) * stepSize;
     int numStepsX = std::ceil((maxPoint.x - minPoint.x) / x_stepSize);
     int numStepsY = std::ceil((maxPoint.y - minPoint.y) / y_stepSize);
     int numStepsZ = std::ceil((maxPoint.z - minPoint.z) / z_stepSize);
@@ -303,7 +298,7 @@ void copy_directory(std::wstring wsrc, std::wstring wdest) {
 
     _WDIR *dir = _wopendir(wsrc.c_str());
     if (dir == NULL) {
-        perror("Unable to open source directory.");
+        std::cerr << "Unable to open source directory." << std::endl;
         return;
     }
 
@@ -339,87 +334,134 @@ void copy_directory(std::wstring wsrc, std::wstring wdest) {
 
 std::string ensureTrailingBackslash(const std::string& folderPath) {
     if (!folderPath.empty() && folderPath.back() != '\\') {
-        return folderPath + '\\';
+        return folderPath + "\\";
     }
     return folderPath;
 }
 
+int check_path(const std::string& filepath) {
+    std::filesystem::path path = filepath;
+    if (std::filesystem::exists(path)) {
+        if (std::filesystem::is_directory(path)) {
+            return 1;
+        }
+        else if (std::filesystem::is_regular_file(path)) {
+            if (path.extension() == ".obj") {
+                return 2;
+            }
+            else {
+                std::cerr << "Error: Target file is not an obj file." << std::endl;
+                return 0;
+            }
+        }
+        else {
+            std::cerr << "Error: Target id not a regular file or directory." << std::endl;
+            return 0;
+        }
+    } else {
+        std::cerr << "Error: Target directory/ObjFile " << path << " does not exist." << std::endl;
+        return 0;
+    }
+}
+
 int main(int argc, char* argv[])
 {
-
     SetConsoleOutputCP(CP_UTF8);
 
-    if (argc < 2) {
-        std::cerr << "Usage: " << argv[0] << " <targetDir> [x_block_num] [y_block_num] [z_block_num]" << std::endl;
-        std::cerr << "<targetDir> is required, the other are optional." << std::endl;
+    if (argc < 3) {
+        std::cerr << "Usage: " << argv[0] << " <targetDir/targetObj> <outputDir> [x_block_num] [y_block_num] [z_block_num]" << std::endl;
+        std::cerr << "<targetDir/targetObj> <outputDir> is required, the other are optional." << std::endl;
         return 1;
     }
 
     std::string targetDir = argv[1];
-    targetDir = ensureTrailingBackslash(targetDir);
-    std::string outputDir = ".\\splited_obj\\";
+    // std::string targetDir = ".\\前海交易广场.obj";
+    int path_flag = check_path(targetDir);
+    if(path_flag == 0){
+        return 0;
+    }
+    else if(path_flag == 1){
+        targetDir = ensureTrailingBackslash(targetDir);
+    }
+    std::string outputDir = argv[2];
+    // std::string outputDir = ".\\splited_obj\\";
+    outputDir = ensureTrailingBackslash(outputDir);
     int x_block_num = 2;
     int y_block_num = 2;
     int z_block_num = 2; 
 
-    // 检查目标文件夹是否存在
-    if (!std::filesystem::exists(targetDir) || !std::filesystem::is_directory(targetDir)) {
-        std::cerr << "Error: Target directory '" << targetDir << "' does not exist." << std::endl;
-        return 1;
-    }
-
-    if (argc >= 3) {
-        x_block_num = std::stoi(argv[2]);
-    }
     if (argc >= 4) {
-        y_block_num = std::stoi(argv[3]);
+        x_block_num = std::stoi(argv[3]);
     }
     if (argc >= 5) {
-        z_block_num = std::stoi(argv[4]);
+        y_block_num = std::stoi(argv[4]);
+    }
+    if (argc >= 6) {
+        z_block_num = std::stoi(argv[5]);
     }
 
-    // std::string targetDir = "C:\\Users\\12569\\Desktop\\ObjCutter\\ObjCutter\\terra_obj\\";
-    // std::string outputDir = "C:\\Users\\12569\\Desktop\\ObjCutter\\ObjCutter\\splited_obj\\";
-
-    std::filesystem::create_directory(outputDir);
-    //将输出重定向到文件
-    freopen(std::string(outputDir + "log.txt").c_str(), "w", stdout);
-    // 遍历该文件夹
-    for (auto& p : std::filesystem::directory_iterator(targetDir))
-    {
-        if (p.is_directory())
+    if(path_flag == 1){
+        std::filesystem::create_directory(outputDir);
+        //将输出重定向到文件
+        freopen(std::string(outputDir + "log.txt").c_str(), "w", stdout);
+        // 遍历该文件夹
+        for (auto& p : std::filesystem::directory_iterator(targetDir))
         {
-            auto begin = std::chrono::system_clock::now();
-            std::string pStr = p.path().string();
-            std::string folderName = pStr.substr(pStr.find_last_of("\\") + 1);
-            std::string outputDirSplited = outputDir + folderName + "\\";
-            std::filesystem::create_directory(outputDirSplited);
-            for (auto& p2 : std::filesystem::directory_iterator(p.path()))
+            if (p.is_directory())
             {
-                if (p2.is_regular_file() && p2.path().extension() == ".obj")
+                auto begin = std::chrono::system_clock::now();
+                std::string pStr = p.path().string();
+                std::string folderName = pStr.substr(pStr.find_last_of("\\") + 1);
+                std::string outputDirSplited = outputDir + folderName + "\\";
+                std::filesystem::create_directory(outputDirSplited);
+                for (auto& p2 : std::filesystem::directory_iterator(p.path()))
                 {
-                    std::string objPath = p2.path().string();
-                    splitObj(objPath, x_block_num, y_block_num, z_block_num, outputDirSplited);
+                    if (p2.is_regular_file() && p2.path().extension() == ".obj")
+                    {
+                        std::string objPath = p2.path().string();
+                        splitObj(objPath, x_block_num, y_block_num, z_block_num, outputDirSplited);
+                    }
+                    else if(p2.is_directory())
+                    {
+                        // 复制目录
+                        copy_directory(string_to_wstring(p2.path().string()), string_to_wstring(outputDirSplited + p2.path().filename().string()));
+                    }
+                    else{
+                        // 复制文件
+                        copy_file(string_to_wstring(p2.path().string()), string_to_wstring(outputDirSplited + p2.path().filename().string()));
+                    }
+                    
                 }
-                else if(p2.is_directory())
-                {
-                    // 复制目录
-                    copy_directory(string_to_wstring(p2.path().string()), string_to_wstring(outputDirSplited + p2.path().filename().string()));
-                }
-                else{
-                    // 复制文件
-                    copy_file(string_to_wstring(p2.path().string()), string_to_wstring(outputDirSplited + p2.path().filename().string()));
-                }
-                
+                std::chrono::duration<double> cut_spend_time = std::chrono::system_clock::now() - begin;
+                std::cout << std::endl;
+                std::cout << "finished: " << pStr << " to " << outputDirSplited << std::endl;
+                std::cerr << "finished: " << pStr << " to " << outputDirSplited << std::endl;
+                std::cout << "The whole process takes " << cut_spend_time.count() << "s" << std::endl;
+                std::cout << std::endl;
             }
-            std::chrono::duration<double> cut_spend_time = std::chrono::system_clock::now() - begin;
-            std::cout << std::endl;
-            std::cout << "finished: " << pStr << " to " << outputDirSplited << std::endl;
-            std::cerr << "finished: " << pStr << " to " << outputDirSplited << std::endl;
-            std::cout << "The whole process takes " << cut_spend_time.count() << "s" << std::endl;
-            std::cout << std::endl;
         }
     }
+    else if(path_flag == 2){
+        std::filesystem::create_directory(outputDir);
+        //将输出重定向到文件
+        freopen(std::string(outputDir + "log.txt").c_str(), "w", stdout);
+
+        auto begin = std::chrono::system_clock::now();
+        std::string folderName = targetDir.substr(targetDir.find_last_of("\\") + 1);
+        folderName = folderName.substr(0, folderName.size() - 4);
+        std::string outputDirSplited = outputDir + folderName + "\\";
+        std::filesystem::create_directory(outputDirSplited);
+
+        splitObj(targetDir, x_block_num, y_block_num, z_block_num, outputDirSplited);
+
+        std::chrono::duration<double> cut_spend_time = std::chrono::system_clock::now() - begin;
+        std::cout << std::endl;
+        std::cout << "finished: " << targetDir << " to " << outputDirSplited << std::endl;
+        std::cerr << "finished: " << targetDir << " to " << outputDirSplited << std::endl;
+        std::cout << "The whole process takes " << cut_spend_time.count() << "s" << std::endl;
+        std::cout << std::endl;
+    }
+
     std::cerr << "All done!" << std::endl;
     return 0;
 }
