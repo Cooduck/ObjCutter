@@ -385,6 +385,7 @@ bool ObjModel::load(const std::string& filename)
         while (fgets(buffer, sizeof(buffer), file5)){
             char type[100];
             sscanf(buffer, "%s", type);
+
             if (strcmp(type, "f") == 0){
                 std::vector<int> v, t, n;
 
@@ -740,6 +741,11 @@ ObjCutter* ObjCutter::cut(const Area& area)
             // 全部在里面的情况
             if (status.isFull())
             {
+                // 如果得到的点组成的是点或线，则跳过
+                if(triangle[0] == triangle[1] || triangle[0] == triangle[2] || triangle[1] == triangle[2]){
+                    continue;
+                }
+
                 Face newFace;
                 newFace.v1 = addPoint(triangle[0]);
                 newFace.v2 = addPoint(triangle[1]);
@@ -774,8 +780,12 @@ ObjCutter* ObjCutter::cut(const Area& area)
 
             // 然后再看情况加三角形
             int singleIndex = status.getSingleIndex() - 1;
-            if (status.getInpartNum() == 1)
-            {
+
+            if(status.getInpartNum() == 1){
+
+                if(triangle[singleIndex] == newPoint1 || newPoint1 == newPoint2 || newPoint2 == triangle[singleIndex])
+                    continue;
+
                 Face newFace;
                 newFace.v1 = addPoint(triangle[singleIndex]);
                 newFace.v2 = addPoint(newPoint1);
@@ -794,43 +804,71 @@ ObjCutter* ObjCutter::cut(const Area& area)
                 }
                 cuttedModel->addFace(newFace);
             }
-            else if (status.getInpartNum() == 2)
-            {
-                Face newFace1, newFace2;
-                Vector3 p1{triangle[(singleIndex + 1) % 3]},
-                        p2{triangle[(singleIndex + 2) % 3]};
-                Vector2 t1{ texture[(singleIndex + 1) % 3]},
-                        t2{ texture[(singleIndex + 2) % 3]};
+            else if (status.getInpartNum() == 2){
 
-                newFace1.v1 = addPoint(p1);
-                newFace1.v2 = addPoint(p2);
-                newFace1.v3 = addPoint(newPoint2);
-                newFace2.v1 = addPoint(newPoint2);
-                newFace2.v2 = addPoint(newPoint1);
-                newFace2.v3 = addPoint(p1);
+                // 如果得到的点组成的是点或线，则跳过
+                if(triangle[(singleIndex + 1) % 3] == triangle[(singleIndex + 2) % 3] || triangle[(singleIndex + 2) % 3] == newPoint2 || newPoint2 == triangle[(singleIndex + 1) % 3]){
+                    continue;
+                }
+                else{
+                    Face newFace1;
+                    Vector3 p1{triangle[(singleIndex + 1) % 3]},
+                            p2{triangle[(singleIndex + 2) % 3]};
+                    Vector2 t1{ texture[(singleIndex + 1) % 3]},
+                            t2{ texture[(singleIndex + 2) % 3]};
 
-                if (face.t1 > 0)
-                {
-                    newFace1.t1 = addTexturePoint(t1);
-                    newFace1.t2 = addTexturePoint(t2);
-                    newFace1.t3 = addTexturePoint(newTexture2);
-                    newFace2.t1 = addTexturePoint(newTexture2);
-                    newFace2.t2 = addTexturePoint(newTexture1);
-                    newFace2.t3 = addTexturePoint(t1);
+                    newFace1.v1 = addPoint(p1);
+                    newFace1.v2 = addPoint(p2);
+                    newFace1.v3 = addPoint(newPoint2);
+
+                    if (face.t1 > 0)
+                    {
+                        newFace1.t1 = addTexturePoint(t1);
+                        newFace1.t2 = addTexturePoint(t2);
+                        newFace1.t3 = addTexturePoint(newTexture2);
+                    }
+
+                    if (face.n1 > 0)
+                    {
+                        newFace1.n1 = addNormal(normal[0]);
+                        newFace1.n2 = addNormal(normal[1]);
+                        newFace1.n3 = addNormal(normal[2]);
+                    }
+
+                    cuttedModel->addFace(newFace1);
                 }
 
-                if (face.n1 > 0)
-                {
-                    newFace1.n1 = addNormal(normal[0]);
-                    newFace1.n2 = addNormal(normal[1]);
-                    newFace1.n3 = addNormal(normal[2]);
-                    newFace2.n1 = addNormal(normal[2]);
-                    newFace2.n2 = addNormal(normal[1]);
-                    newFace2.n3 = addNormal(normal[0]);
+                // 如果得到的点组成的是点或线，则跳过
+                if(newPoint2 == newPoint1 || newPoint1 == triangle[(singleIndex + 1) % 3] || triangle[(singleIndex + 1) % 3] == newPoint2){
+                    continue;
                 }
+                else{
+                    Face newFace2;
+                    Vector3 p1{triangle[(singleIndex + 1) % 3]},
+                            p2{triangle[(singleIndex + 2) % 3]};
+                    Vector2 t1{ texture[(singleIndex + 1) % 3]},
+                            t2{ texture[(singleIndex + 2) % 3]};
 
-                cuttedModel->addFace(newFace1);
-                cuttedModel->addFace(newFace2);
+                    newFace2.v1 = addPoint(newPoint2);
+                    newFace2.v2 = addPoint(newPoint1);
+                    newFace2.v3 = addPoint(p1);
+
+                    if (face.t1 > 0)
+                    {
+                        newFace2.t1 = addTexturePoint(newTexture2);
+                        newFace2.t2 = addTexturePoint(newTexture1);
+                        newFace2.t3 = addTexturePoint(t1);
+                    }
+
+                    if (face.n1 > 0)
+                    {
+                        newFace2.n1 = addNormal(normal[2]);
+                        newFace2.n2 = addNormal(normal[1]);
+                        newFace2.n3 = addNormal(normal[0]);
+                    }
+
+                    cuttedModel->addFace(newFace2);
+                }
             }
         }
     }
