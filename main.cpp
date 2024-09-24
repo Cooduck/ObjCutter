@@ -28,6 +28,7 @@ int done_cnt1 = 0, done_cnt2 = 0;
 int end_sign1, end_sign2;
 std::queue<std::pair<ObjCutter*, float>> vector1;
 std::queue<std::pair<ObjCutter*, std::pair<float, float>>> vector2;
+long long count_splited_obj = 0;
 
 void producer1(ObjCutter* objCutter, int numStepsX, float minX, float stepSize, Vector3 minPoint, Vector3 maxPoint) {
     for (int i = 1; i <= numStepsX; i++) {
@@ -130,8 +131,9 @@ void producer3(int numStepsZ, float minX, float minY, float minZ, float stepSize
                 Plane plane3 = Plane(Vector3(x, y, z), Vector3(0, 0, -1));
                 ObjCutter* cutObj = cutObjY->cut(plane3);
 
-                string fileName = outputDir + std::to_string((int)x) + "_" + std::to_string((int)y) + "_" + std::to_string((int)z) + ".obj";
                 if (cutObj && !cutObj->empty()) {
+                    //string fileName = outputDir + std::to_string((int)x) + "_" + std::to_string((int)y) + "_" + std::to_string((int)z) + ".obj";
+                    string fileName = outputDir + std::to_string(count_splited_obj++) + ".obj";
                     cutObj->save(fileName);
                 }
                 delete cutObj;
@@ -268,9 +270,10 @@ void splitObj(const std::string& objPath, int x_block_num, int y_block_num, int 
 //                 float z = minPoint.z + k * z_stepSize;
 //                 Plane plane3 = Plane(Vector3(x, y, z), Vector3(0, 0, -1));
 //                 ObjCutter* cutObj = cutObjY->cut(plane3);
-//                 string fileName = outputDir + std::to_string((int)x) + "_" + std::to_string((int)y) + "_" + std::to_string((int)z) + ".obj";
 //                 if (cutObj && !cutObj->empty())
 //                 {
+//                     // string fileName = outputDir + std::to_string((int)x) + "_" + std::to_string((int)y) + "_" + std::to_string((int)z) + ".obj";
+//                     string fileName = outputDir + std::to_string(count_splited_obj++) + ".obj";
 //                     cutObj->save(fileName);
 //                 }
 //                 delete cutObj;
@@ -375,7 +378,7 @@ int main(int argc, char* argv[])
     }
 
     std::string targetDir = argv[1];
-    // std::string targetDir = ".\\前海交易广场.obj";
+    // std::string targetDir = ".\\terra_obj\\";
     int path_flag = check_path(targetDir);
     if(path_flag == 0){
         return 0;
@@ -410,6 +413,7 @@ int main(int argc, char* argv[])
             if (p.is_directory())
             {
                 auto begin = std::chrono::system_clock::now();
+                count_splited_obj = 0;
                 std::string pStr = p.path().string();
                 std::string folderName = pStr.substr(pStr.find_last_of("\\") + 1);
                 std::string outputDirSplited = outputDir + folderName + "\\";
@@ -436,7 +440,9 @@ int main(int argc, char* argv[])
                 std::cout << std::endl;
                 std::cout << "finished: " << pStr << " to " << outputDirSplited << std::endl;
                 std::cerr << "finished: " << pStr << " to " << outputDirSplited << std::endl;
+                std::cout << "A total of " << count_splited_obj << " splited files are cut out" << std::endl;
                 std::cout << "The whole process takes " << cut_spend_time.count() << "s" << std::endl;
+                std::cout << "---------------------------------------------------------------------------" << std::endl;
                 std::cout << std::endl;
             }
         }
@@ -447,6 +453,7 @@ int main(int argc, char* argv[])
         freopen(std::string(outputDir + "log.txt").c_str(), "w", stdout);
 
         auto begin = std::chrono::system_clock::now();
+        count_splited_obj = 0;
         std::string folderName = targetDir.substr(targetDir.find_last_of("\\") + 1);
         folderName = folderName.substr(0, folderName.size() - 4);
         std::string outputDirSplited = outputDir + folderName + "\\";
@@ -458,7 +465,9 @@ int main(int argc, char* argv[])
         std::cout << std::endl;
         std::cout << "finished: " << targetDir << " to " << outputDirSplited << std::endl;
         std::cerr << "finished: " << targetDir << " to " << outputDirSplited << std::endl;
+        std::cout << "A total of " << count_splited_obj << " splited files are cut out" << std::endl;
         std::cout << "The whole process takes " << cut_spend_time.count() << "s" << std::endl;
+        std::cout << "---------------------------------------------------------------------------" << std::endl;
         std::cout << std::endl;
     }
 
