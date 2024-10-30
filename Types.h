@@ -44,6 +44,8 @@ struct Vector3 {
 
     Vector3 operator*(const Vector3& other) const;
 
+    Vector3 operator/(float scalar) const;
+
     friend bool operator==(const Vector3& lhs, const Vector3& rhs);
 
     friend bool operator!=(const Vector3& lhs, const Vector3& rhs);

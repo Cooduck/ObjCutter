@@ -80,6 +80,10 @@ Vector3 Vector3::operator*(const Vector3& other) const {
     return Vector3{x * other.x, y * other.y, z * other.z};
 }
 
+Vector3 Vector3::operator/(float scalar) const{
+    return Vector3{x / scalar, y / scalar, z / scalar};
+}
+
 bool operator==(const Vector3& lhs, const Vector3& rhs){
     if(lhs.x == rhs.x && lhs.y == rhs.y && lhs.z == rhs.z){
         return 1;

@@ -18,6 +18,7 @@
 #include <float.h>
 #include <thread>
 #include <future>
+#include <cctype>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -43,82 +44,18 @@ std::string wstring_to_string(const std::wstring& wstr) {
     return converter.to_bytes(wstr);
 }
 
-bool normalize_vt(const std::string& inputfile, const std::string& outputfile)
-{
-    FILE* Inputfile = _wfopen(string_to_wstring(inputfile).c_str(), L"r");
-    FILE* Outputfile;
-    if (Inputfile == nullptr)
-    {
-        std::cout << "Error: Cannot open file " << inputfile << std::endl;
-        return 0;
-    }
-
-    float minU;
-    float maxU;
-    float minV;
-    float maxV;
-    int flag = 1;
-
-    char buffer[1024];
-    while (fgets(buffer, sizeof(buffer), Inputfile))
-    {
-        char type[100];
-        sscanf(buffer, "%s", type);
-        if (strcmp(type, "vt") == 0)
-        {
-            float u, v;
-            sscanf(buffer, "vt %f %f", &u, &v);
-            if(flag){
-                minU = u;
-                maxU = u;
-                minV = v;
-                maxV = v;
-                flag = 0;
-                continue;
-            }
-            minU = std::min(minU, u);
-            maxU = std::max(maxU, u);
-            minV = std::min(minV, v);
-            maxV = std::max(maxV, v);
-        }
-        else
-        {
-            continue;
+bool hasIllegalCharacters(const std::string &input, char &illegal_char) {
+    for (char ch : input) {
+        // 如果字符不是数字、斜杠或空格，返回 true
+        if (!std::isdigit(ch) && ch != '/' && !std::isspace(ch) && ch != '-' && ch != '.' && ch != 'e' && ch != '+' && ch != '-') {
+            illegal_char = ch;
+            return true;
         }
     }
-    fclose(Inputfile);
-
-    Inputfile = _wfopen(string_to_wstring(inputfile).c_str(), L"r");
-    Outputfile = _wfopen(string_to_wstring(outputfile).c_str(), L"w");
-    if (Outputfile == nullptr) {
-        std::cout << "Error: Unable to open or create file " << Outputfile << std::endl;
-        return 0;
-    }
-
-    while (fgets(buffer, sizeof(buffer), Inputfile))
-    {
-        char type[100];
-        sscanf(buffer, "%s", type);
-        if (strcmp(type, "vt") == 0)
-        {
-            float u, v;
-            sscanf(buffer, "vt %f %f", &u, &v);
-            u = (u - minU) / (maxU - minU);
-            v = (v - minV) / (maxV - minV);
-            std::string content =  "vt " + std::to_string(u) + " " + std::to_string(v) + '\n';
-            fputs(content.c_str(), Outputfile);
-        }
-        else
-        {
-            fputs(buffer, Outputfile);
-        }
-    }
-    fclose(Inputfile);
-    fclose(Outputfile);
-    return 1;
+    return false; // 所有字符均合法
 }
 
-bool ObjModel::save(const std::string& fileName)
+bool ObjModel::save(const std::string& fileName, const float & model_minz)
 {
     string filedir = fileName.substr(0, fileName.find_last_of("\\") + 1);
 
@@ -138,8 +75,9 @@ bool ObjModel::save(const std::string& fileName)
         auto now = std::chrono::system_clock::now();
         string content = "mtllib " + mtllib + '\n';
         fputs(content.c_str(), file);
-        for (const auto& point : points)
+        for (auto& point : points)
         {
+            point.z -= model_minz;    // 模型上移，使得最低点z轴坐标为0
             content = "v " + point.Vector3_to_string() + '\n';
             fputs(content.c_str(), file);
         }
@@ -227,6 +165,15 @@ Vector3 ObjModel::getCenter() const
     return center;
 }
 
+Vector3 ObjModel::getBottomCenter() const
+{
+    Vector3 BottomCenter{};
+    BottomCenter.x = (minX + maxX) / 2;
+    BottomCenter.y = (minY + maxY) / 2;
+    BottomCenter.z = minZ;
+    return BottomCenter;
+}
+
 Vector3 ObjModel::getMinPoint() const
 {
     return Vector3(minX, minY, minZ);
@@ -299,12 +246,13 @@ bool ObjModel::load(const std::string& filename)
     }
 
     cout << "Loading " << filename << "..." << endl;
+    int errflag = 0;
 
     auto processMtllib = [&]() {
         FILE* file1 = _wfopen(open_file.c_str(), L"r");
         char buffer[1024];
         while (fgets(buffer, sizeof(buffer), file1)){
-            char type[100];
+            char type[100] = "";
             sscanf(buffer, "%s", type);
             if (strcmp(type, "mtllib") == 0){
                 char mtllibBuff[200];
@@ -323,9 +271,23 @@ bool ObjModel::load(const std::string& filename)
         FILE* file2 = _wfopen(open_file.c_str(), L"r");
         char buffer[1024];
         while (fgets(buffer, sizeof(buffer), file2)){
-            char type[100];
+            char type[100] = "";
             sscanf(buffer, "%s", type);
-            if (strcmp(type, "v") == 0){
+            if (strcmp(type, "v") == 0){  
+                char vtnAllBuff[300];
+                sscanf(buffer, "v%[^\n]", vtnAllBuff);
+                char *ptr = vtnAllBuff;
+                std::string currentInput(ptr);
+                char illegal_char;
+                // 检查是否包含非法字符
+                if (hasIllegalCharacters(currentInput, illegal_char)) {
+                    errflag = 1;
+                    std::cerr << "Warning: Invalid character encountered in v information of " << filename 
+                            << ": " << currentInput << ", invalid character: " << illegal_char << std::endl;
+                    std::cout << "Warning: Invalid character encountered in v information of " << filename 
+                            << ": " << currentInput << ", invalid character: " << illegal_char << std::endl;
+                    continue;
+                }
                 Vector3 point{};
                 sscanf(buffer, "v %f %f %f", &point.x, &point.y, &point.z);
                 minX = point.x < minX ? point.x : minX;
@@ -347,9 +309,25 @@ bool ObjModel::load(const std::string& filename)
         FILE* file3 = _wfopen(open_file.c_str(), L"r");
         char buffer[1024];
         while (fgets(buffer, sizeof(buffer), file3)){
-            char type[100];
+            char type[100] = "";
             sscanf(buffer, "%s", type);
             if (strcmp(type, "vt") == 0){
+
+                char vtnAllBuff[300];
+                sscanf(buffer, "vt%[^\n]", vtnAllBuff);
+                char *ptr = vtnAllBuff;
+                std::string currentInput(ptr);
+                char illegal_char;
+                // 检查是否包含非法字符
+                if (hasIllegalCharacters(currentInput, illegal_char)) {
+                    errflag = 1;
+                    std::cerr << "Warning: Invalid character encountered in vt information of " << filename 
+                            << ": " << currentInput << ", invalid character: " << illegal_char << std::endl;
+                    std::cout << "Warning: Invalid character encountered in vt information of " << filename 
+                            << ": " << currentInput << ", invalid character: " << illegal_char << std::endl;
+                    continue;
+                }
+
                 Vector2 point{};
                 sscanf(buffer, "vt %f %f", &point.x, &point.y);
                 texturePoints.emplace_back(point.x, point.y);
@@ -365,9 +343,25 @@ bool ObjModel::load(const std::string& filename)
         FILE* file4 = _wfopen(open_file.c_str(), L"r");
         char buffer[1024];
         while (fgets(buffer, sizeof(buffer), file4)){
-            char type[100];
+            char type[100] = "";
             sscanf(buffer, "%s", type);
             if (strcmp(type, "vn") == 0){
+
+                char vtnAllBuff[300];
+                sscanf(buffer, "vn%[^\n]", vtnAllBuff);
+                char *ptr = vtnAllBuff;
+                std::string currentInput(ptr);
+                char illegal_char;
+                // 检查是否包含非法字符
+                if (hasIllegalCharacters(currentInput, illegal_char)) {
+                    errflag = 1;
+                    std::cerr << "Warning: Invalid character encountered in vn information of " << filename 
+                            << ": " << currentInput << ", invalid character: " << illegal_char << std::endl;
+                    std::cout << "Warning: Invalid character encountered in vn information of " << filename 
+                            << ": " << currentInput << ", invalid character: " << illegal_char << std::endl;
+                    continue;
+                }
+
                 Vector3 normal{};
                 sscanf(buffer, "vn %f %f %f", &normal.x, &normal.y, &normal.z);
                 normals.push_back(normal);
@@ -383,7 +377,7 @@ bool ObjModel::load(const std::string& filename)
         FILE* file5 = _wfopen(open_file.c_str(), L"r");
         char buffer[1024];
         while (fgets(buffer, sizeof(buffer), file5)){
-            char type[100];
+            char type[100] = "";
             sscanf(buffer, "%s", type);
 
             if (strcmp(type, "f") == 0){
@@ -397,9 +391,22 @@ bool ObjModel::load(const std::string& filename)
                 char *ptr = vtnAllBuff;
                 for (int i = 0; i < spaceCount; i++)
                 {
+
+                    char illegal_char;
+                    std::string currentInput(ptr);
+                    // 检查是否包含非法字符
+                    if (hasIllegalCharacters(currentInput, illegal_char)) {
+                        errflag = 1;
+                        std::cerr << "Warning: Invalid character encountered in f information of " << filename 
+                                << ": " << currentInput << ", invalid character: " << illegal_char << std::endl;
+                        std::cout << "Warning: Invalid character encountered in f information of " << filename 
+                                << ": " << currentInput << ", invalid character: " << illegal_char << std::endl;
+                        break;
+                    }
+
                     ptr += strcspn(ptr, " ") + 1;
                     int a, b, c;
-                    // 用regex不断读取vtnAllBuff的数字
+
                     int ret= sscanf(ptr, regex.c_str(), &a, &b, &c);
                     if (ret >= 1)
                         v.push_back(a);
@@ -408,6 +415,7 @@ bool ObjModel::load(const std::string& filename)
                     if (ret >= 3)
                         n.push_back(c);
                 }
+                if(errflag) continue;
 
                 int lenth = v.size();
                 for (int i = 0; i <= lenth - 3; i++)
@@ -721,20 +729,64 @@ ObjCutter* ObjCutter::cut(const Area& area)
             Vector3 triangle[3];
             Vector2 texture[3];
             Vector3 normal[3];
-            triangle[0] = points[face.v1 - 1];
-            triangle[1] = points[face.v2 - 1];
-            triangle[2] = points[face.v3 - 1];
+            int result = 1;
+
+            auto assignPoint = [&](int index, Vector3& target) -> int{
+                if (index < points.size()) {
+                    target = points[index];
+                    return 1;
+                } else {
+                    std::cerr << "Warning: Accessing out-of-bounds index in points array! The f is " 
+                            << face << ", the size of points is " << points.size() << std::endl;
+                    std::cout << "Warning: Accessing out-of-bounds index in points array! The f is " 
+                            << face << ", the size of points is " << points.size() << std::endl;
+                    return 0;
+                }
+            };
+
+            result &= assignPoint(face.v1 - 1, triangle[0]);
+            result &= assignPoint(face.v2 - 1, triangle[1]);
+            result &= assignPoint(face.v3 - 1, triangle[2]);
+            if(result == 0) continue;   // 出现越界则跳过该三角片面
+
             if (face.t1 > 0)
             {
-                texture[0] = texturePoints[face.t1 - 1];
-                texture[1] = texturePoints[face.t2 - 1];
-                texture[2] = texturePoints[face.t3 - 1];
+                auto assignTexture = [&](int index, Vector2& target) -> int {
+                    if (index < texturePoints.size()) {
+                        target = texturePoints[index];
+                        return 1;
+                    } else {
+                        std::cerr << "Warning: Accessing out-of-bounds index in texturePoints array! The f is "
+                                << face << ", the size of texturePoints is " << texturePoints.size() << std::endl;
+                        std::cout << "Warning: Accessing out-of-bounds index in texturePoints array! The f is "
+                                << face << ", the size of texturePoints is " << texturePoints.size() << std::endl;
+                        return 0;
+                    }
+                };
+
+                result &= assignTexture(face.t1 - 1, texture[0]);
+                result &= assignTexture(face.t2 - 1, texture[1]);
+                result &= assignTexture(face.t3 - 1, texture[2]);
+                if(result == 0) continue;   // 出现越界则跳过该三角片面
             }
             if (face.n1 > 0)
             {
-                normal[0] = normals[face.n1 - 1];
-                normal[1] = normals[face.n2 - 1];
-                normal[2] = normals[face.n3 - 1];
+                auto assignNormal = [&](int index, Vector3& target) -> int {
+                    if (index < normals.size()) {
+                        target = normals[index];
+                        return 1; // 成功返回1
+                    } else {
+                        std::cerr << "Warning: Accessing out-of-bounds index in normals array! The f is "
+                                << face << ", the size of normals is " << normals.size() << std::endl;
+                        std::cout << "Warning: Accessing out-of-bounds index in normals array! The f is "
+                                << face << ", the size of normals is " << normals.size() << std::endl;
+                        return 0; // 失败返回0
+                    }
+                };
+                result &= assignNormal(face.n1 - 1, normal[0]);
+                result &= assignNormal(face.n2 - 1, normal[1]);
+                result &= assignNormal(face.n3 - 1, normal[2]);
+                if(result == 0) continue;   // 出现越界则跳过该三角片面
             }
             TriangleStatus status(triangle, area);
 

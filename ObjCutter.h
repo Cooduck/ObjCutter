@@ -37,10 +37,11 @@ public:
     // base actions
     bool load(const std::string& filename);
     void info();
-    bool save(const std::string& filename);
+    bool save(const std::string& fileName, const float & model_minz);
     bool empty() const;
 
     Vector3 getCenter() const;
+    Vector3 getBottomCenter() const;
     Vector3 getMinPoint() const;
     Vector3 getMaxPoint() const;
     string getDir() const;
