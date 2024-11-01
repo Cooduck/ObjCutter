@@ -15,10 +15,10 @@
 #include <codecvt>
 #include <locale>
 #include <cstdio>
-#include <float.h>
 #include <thread>
 #include <future>
 #include <cctype>
+#include <unordered_map>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -55,7 +55,38 @@ bool hasIllegalCharacters(const std::string &input, char &illegal_char) {
     return false; // 所有字符均合法
 }
 
-bool ObjModel::save(const std::string& fileName, const float & model_minz)
+void sortFace(Face & face){
+    // 提取顶点索引
+    std::array<unsigned int, 3> vertexIndices = {face.v1, face.v2, face.v3};
+    std::array<unsigned int, 3> textureIndices = {face.t1, face.t2, face.t3};
+    std::array<unsigned int, 3> normalIndices = {face.n1, face.n2, face.n3};
+
+    // 创建一个包含顶点索引和对应的索引元组的数组
+    std::array<std::tuple<unsigned int, unsigned int, unsigned int>, 3> indexedFaces = {
+        std::make_tuple(face.v1, face.t1, face.n1),
+        std::make_tuple(face.v2, face.t2, face.n2),
+        std::make_tuple(face.v3, face.t3, face.n3)
+    };
+
+    // 对元组数组进行排序，依据顶点索引
+    std::sort(indexedFaces.begin(), indexedFaces.end(),
+            [](const std::tuple<unsigned int, unsigned int, unsigned int>& a, const std::tuple<unsigned int, unsigned int, unsigned int>& b) {
+                return std::get<0>(a) < std::get<0>(b);
+            });
+
+    // 重新提取排序后的结果
+    face.v1 = std::get<0>(indexedFaces[0]);
+    face.t1 = std::get<1>(indexedFaces[0]);
+    face.n1 = std::get<2>(indexedFaces[0]);
+    face.v2 = std::get<0>(indexedFaces[1]);
+    face.t2 = std::get<1>(indexedFaces[1]);
+    face.n2 = std::get<2>(indexedFaces[1]);
+    face.v3 = std::get<0>(indexedFaces[2]);
+    face.t3 = std::get<1>(indexedFaces[2]);
+    face.n3 = std::get<2>(indexedFaces[2]);
+}
+
+bool ObjModel::save(const std::string& fileName, const double & model_minz)
 {
     string filedir = fileName.substr(0, fileName.find_last_of("\\") + 1);
 
@@ -92,13 +123,14 @@ bool ObjModel::save(const std::string& fileName, const float & model_minz)
             fputs(content.c_str(), file);
         }
         for(const auto& mtlFace : faces.mtlFaces){
-            if (!mtlFace.mtl.empty()){
+            if (!mtlFace.mtl.empty() && !mtlFace.faces.empty()){
                 content = "usemtl " + mtlFace.mtl + '\n';
                 fputs(content.c_str(), file);
-            }
-            for(auto& f : mtlFace.faces) {
+
+                for(auto& f : mtlFace.faces) {
                 content = "f " + f.Face_to_string() + '\n';
                 fputs(content.c_str(), file);
+                }
             }
         }
         fclose(file);
@@ -710,21 +742,21 @@ int ObjCutter::addNormal(const Vector3& normal, int op)
     }
 }
 
-ObjCutter* ObjCutter::cut(const Area& area)
+std::unique_ptr<ObjCutter> ObjCutter::cut(const Area& area)
 {
     auto begin = std::chrono::system_clock::now();
 
-    ObjCutter* cuttedModel = new ObjCutter(fileDir);
+    std::unique_ptr<ObjCutter> cuttedModel = std::make_unique<ObjCutter>(fileDir);
     cuttedModel->setMtllib(mtllib);
 
     // collecting faces
-    for (const auto& mtlFace : faces.mtlFaces)
+    for (auto& mtlFace : faces.mtlFaces)
     {
         MtlFaces cuttingMtlFace;
         cuttingMtlFace.mtl = mtlFace.mtl;
         cuttedModel->addMtl(mtlFace.mtl);
 
-        for (const auto& face : mtlFace.faces)
+        for (auto& face : mtlFace.faces)
         {
             Vector3 triangle[3];
             Vector2 texture[3];
@@ -827,15 +859,17 @@ ObjCutter* ObjCutter::cut(const Area& area)
             // 其它情况, 先把交点切出来
             Vector3 newPoint1, newPoint2;
             Vector2 newTexture1, newTexture2;
-            cutFace(area, triangle, texture, status,
-                newPoint1, newPoint2, newTexture1, newTexture2);
+            Vector3 newNormal1, newNormal2;
+            cutFace(area, triangle, texture, normal, status,
+                newPoint1, newPoint2, newTexture1, newTexture2, newNormal1, newNormal2);
 
             // 然后再看情况加三角形
             int singleIndex = status.getSingleIndex() - 1;
 
             if(status.getInpartNum() == 1){
 
-                if(triangle[singleIndex] == newPoint1 || newPoint1 == newPoint2 || newPoint2 == triangle[singleIndex])
+                // 如果得到的点组成的是点，则跳过
+                if(triangle[singleIndex] == newPoint1 && newPoint1 == newPoint2 && newPoint2 == triangle[singleIndex])
                     continue;
 
                 Face newFace;
@@ -850,63 +884,83 @@ ObjCutter* ObjCutter::cut(const Area& area)
                 }
                 if (face.n1 > 0)
                 {
-                    newFace.n1 = addNormal(normal[0]);
-                    newFace.n2 = addNormal(normal[1]);
-                    newFace.n3 = addNormal(normal[2]);
+                    newFace.n1 = addNormal(normal[singleIndex]);
+                    newFace.n2 = addNormal(newNormal1);
+                    newFace.n3 = addNormal(newNormal2);
                 }
                 cuttedModel->addFace(newFace);
             }
             else if (status.getInpartNum() == 2){
 
-                // 如果得到的点组成的是点或线，则跳过
-                if(triangle[(singleIndex + 1) % 3] == triangle[(singleIndex + 2) % 3] || triangle[(singleIndex + 2) % 3] == newPoint2 || newPoint2 == triangle[(singleIndex + 1) % 3]){
+                Vector3 p1{triangle[(singleIndex + 1) % 3]},
+                        p2{triangle[(singleIndex + 2) % 3]};
+                Vector2 t1{ texture[(singleIndex + 1) % 3]},
+                        t2{ texture[(singleIndex + 2) % 3]};
+                Vector3 n1{ normal[(singleIndex + 1) % 3]},
+                        n2{ normal[(singleIndex + 2) % 3]};
+
+                if(p1 == newPoint1 && p2 == newPoint2){
                     continue;
                 }
-                else{
-                    Face newFace1;
-                    Vector3 p1{triangle[(singleIndex + 1) % 3]},
-                            p2{triangle[(singleIndex + 2) % 3]};
-                    Vector2 t1{ texture[(singleIndex + 1) % 3]},
-                            t2{ texture[(singleIndex + 2) % 3]};
-
-                    newFace1.v1 = addPoint(p1);
-                    newFace1.v2 = addPoint(p2);
-                    newFace1.v3 = addPoint(newPoint2);
+                else if(p1 == newPoint1 && p2 != newPoint2){
+                    Face newFace;
+                    newFace.v1 = addPoint(p1);
+                    newFace.v2 = addPoint(p2);
+                    newFace.v3 = addPoint(newPoint2);
 
                     if (face.t1 > 0)
                     {
-                        newFace1.t1 = addTexturePoint(t1);
-                        newFace1.t2 = addTexturePoint(t2);
-                        newFace1.t3 = addTexturePoint(newTexture2);
+                        newFace.t1 = addTexturePoint(t1);
+                        newFace.t2 = addTexturePoint(t2);
+                        newFace.t3 = addTexturePoint(newTexture2);
                     }
 
                     if (face.n1 > 0)
                     {
-                        newFace1.n1 = addNormal(normal[0]);
-                        newFace1.n2 = addNormal(normal[1]);
-                        newFace1.n3 = addNormal(normal[2]);
+                        newFace.n1 = addNormal(n1);
+                        newFace.n2 = addNormal(n2);
+                        newFace.n3 = addNormal(newNormal2);
                     }
 
-                    cuttedModel->addFace(newFace1);
+                    cuttedModel->addFace(newFace);
                 }
+                else if(p1 != newPoint1 && p2 == newPoint2){
+                    Face newFace;
+                    newFace.v1 = addPoint(p1);
+                    newFace.v2 = addPoint(p2);
+                    newFace.v3 = addPoint(newPoint1);
 
-                // 如果得到的点组成的是点或线，则跳过
-                if(newPoint2 == newPoint1 || newPoint1 == triangle[(singleIndex + 1) % 3] || triangle[(singleIndex + 1) % 3] == newPoint2){
-                    continue;
+                    if (face.t1 > 0)
+                    {
+                        newFace.t1 = addTexturePoint(t1);
+                        newFace.t2 = addTexturePoint(t2);
+                        newFace.t3 = addTexturePoint(newTexture1);
+                    }
+
+                    if (face.n1 > 0)
+                    {
+                        newFace.n1 = addNormal(n1);
+                        newFace.n2 = addNormal(n2);
+                        newFace.n3 = addNormal(newNormal1);
+                    }
+
+                    cuttedModel->addFace(newFace);
                 }
                 else{
-                    Face newFace2;
-                    Vector3 p1{triangle[(singleIndex + 1) % 3]},
-                            p2{triangle[(singleIndex + 2) % 3]};
-                    Vector2 t1{ texture[(singleIndex + 1) % 3]},
-                            t2{ texture[(singleIndex + 2) % 3]};
+                    Face newFace1, newFace2;
 
+                    newFace1.v1 = addPoint(p1);
+                    newFace1.v2 = addPoint(p2);
+                    newFace1.v3 = addPoint(newPoint2);
                     newFace2.v1 = addPoint(newPoint2);
                     newFace2.v2 = addPoint(newPoint1);
                     newFace2.v3 = addPoint(p1);
 
                     if (face.t1 > 0)
                     {
+                        newFace1.t1 = addTexturePoint(t1);
+                        newFace1.t2 = addTexturePoint(t2);
+                        newFace1.t3 = addTexturePoint(newTexture2);
                         newFace2.t1 = addTexturePoint(newTexture2);
                         newFace2.t2 = addTexturePoint(newTexture1);
                         newFace2.t3 = addTexturePoint(t1);
@@ -914,11 +968,15 @@ ObjCutter* ObjCutter::cut(const Area& area)
 
                     if (face.n1 > 0)
                     {
-                        newFace2.n1 = addNormal(normal[2]);
-                        newFace2.n2 = addNormal(normal[1]);
-                        newFace2.n3 = addNormal(normal[0]);
+                        newFace1.n1 = addNormal(n1);
+                        newFace1.n2 = addNormal(n2);
+                        newFace1.n3 = addNormal(newNormal2);
+                        newFace2.n1 = addNormal(newNormal2);
+                        newFace2.n2 = addNormal(newNormal1);
+                        newFace2.n3 = addNormal(n1);
                     }
 
+                    cuttedModel->addFace(newFace1);
                     cuttedModel->addFace(newFace2);
                 }
             }
@@ -964,283 +1022,289 @@ ObjCutter* ObjCutter::cut(const Area& area)
     return cuttedModel;
 }
 
-void ObjCutter::cut(const Area& area, ObjCutter* & cuttedModel1, ObjCutter* & cuttedModel2){
-    auto begin = std::chrono::system_clock::now();
+// void ObjCutter::cut(const Area& area, ObjCutter* & cuttedModel1, ObjCutter* & cuttedModel2){
+//     auto begin = std::chrono::system_clock::now();
 
-    cuttedModel1 = new ObjCutter(fileDir);
-    cuttedModel1->setMtllib(mtllib);
-    cuttedModel2 = new ObjCutter(fileDir);
-    cuttedModel2->setMtllib(mtllib);
+//     cuttedModel1 = new ObjCutter(fileDir);
+//     cuttedModel1->setMtllib(mtllib);
+//     cuttedModel2 = new ObjCutter(fileDir);
+//     cuttedModel2->setMtllib(mtllib);
 
-    for (const auto& mtlFace : faces.mtlFaces)
-    {
-        MtlFaces cuttingMtlFace;
-        cuttingMtlFace.mtl = mtlFace.mtl;
-        cuttedModel1->addMtl(mtlFace.mtl);
-        cuttedModel2->addMtl(mtlFace.mtl);
+//     for (const auto& mtlFace : faces.mtlFaces)
+//     {
+//         MtlFaces cuttingMtlFace;
+//         cuttingMtlFace.mtl = mtlFace.mtl;
+//         cuttedModel1->addMtl(mtlFace.mtl);
+//         cuttedModel2->addMtl(mtlFace.mtl);
 
-        for (const auto& face : mtlFace.faces)
-        {
-            Vector3 triangle[3];
-            Vector2 texture[3];
-            Vector3 normal[3];
-            triangle[0] = points[face.v1 - 1];
-            triangle[1] = points[face.v2 - 1];
-            triangle[2] = points[face.v3 - 1];
-            if (face.t1 > 0)
-            {
-                texture[0] = texturePoints[face.t1 - 1];
-                texture[1] = texturePoints[face.t2 - 1];
-                texture[2] = texturePoints[face.t3 - 1];
-            }
-            if (face.n1 > 0)
-            {
-                normal[0] = normals[face.n1 - 1];
-                normal[1] = normals[face.n2 - 1];
-                normal[2] = normals[face.n3 - 1];
-            }
-            TriangleStatus status(triangle, area);
+//         for (const auto& face : mtlFace.faces)
+//         {
+//             Vector3 triangle[3];
+//             Vector2 texture[3];
+//             Vector3 normal[3];
+//             triangle[0] = points[face.v1 - 1];
+//             triangle[1] = points[face.v2 - 1];
+//             triangle[2] = points[face.v3 - 1];
+//             if (face.t1 > 0)
+//             {
+//                 texture[0] = texturePoints[face.t1 - 1];
+//                 texture[1] = texturePoints[face.t2 - 1];
+//                 texture[2] = texturePoints[face.t3 - 1];
+//             }
+//             if (face.n1 > 0)
+//             {
+//                 normal[0] = normals[face.n1 - 1];
+//                 normal[1] = normals[face.n2 - 1];
+//                 normal[2] = normals[face.n3 - 1];
+//             }
+//             TriangleStatus status(triangle, area);
 
-            // 全部在里面的情况
-            if (status.isFull())
-            {
-                Face newFace;
-                newFace.v1 = addPoint(triangle[0], 1);
-                newFace.v2 = addPoint(triangle[1], 1);
-                newFace.v3 = addPoint(triangle[2], 1);
-                if (face.t1 > 0)
-                {
-                    newFace.t1 = addTexturePoint(texture[0], 1);
-                    newFace.t2 = addTexturePoint(texture[1], 1);
-                    newFace.t3 = addTexturePoint(texture[2], 1);
-                }
-                if (face.n1 > 0)
-                {
-                    newFace.n1 = addNormal(normal[0], 1);
-                    newFace.n2 = addNormal(normal[1], 1);
-                    newFace.n3 = addNormal(normal[2], 1);
-                }
-                cuttedModel1->addFace(newFace);
-                continue;
-            }
+//             // 全部在里面的情况
+//             if (status.isFull())
+//             {
+//                 Face newFace;
+//                 newFace.v1 = addPoint(triangle[0], 1);
+//                 newFace.v2 = addPoint(triangle[1], 1);
+//                 newFace.v3 = addPoint(triangle[2], 1);
+//                 if (face.t1 > 0)
+//                 {
+//                     newFace.t1 = addTexturePoint(texture[0], 1);
+//                     newFace.t2 = addTexturePoint(texture[1], 1);
+//                     newFace.t3 = addTexturePoint(texture[2], 1);
+//                 }
+//                 if (face.n1 > 0)
+//                 {
+//                     newFace.n1 = addNormal(normal[0], 1);
+//                     newFace.n2 = addNormal(normal[1], 1);
+//                     newFace.n3 = addNormal(normal[2], 1);
+//                 }
+//                 cuttedModel1->addFace(newFace);
+//                 continue;
+//             }
 
-            // 三点都在外面
-            if (status.isOut())
-            {
-                Face newFace;
-                newFace.v1 = addPoint(triangle[0], 2);
-                newFace.v2 = addPoint(triangle[1], 2);
-                newFace.v3 = addPoint(triangle[2], 2);
-                if (face.t1 > 0)
-                {
-                    newFace.t1 = addTexturePoint(texture[0], 2);
-                    newFace.t2 = addTexturePoint(texture[1], 2);
-                    newFace.t3 = addTexturePoint(texture[2], 2);
-                }
-                if (face.n1 > 0)
-                {
-                    newFace.n1 = addNormal(normal[0], 2);
-                    newFace.n2 = addNormal(normal[1], 2);
-                    newFace.n3 = addNormal(normal[2], 2);
-                }
-                cuttedModel2->addFace(newFace);
-                continue;
-            }
+//             // 三点都在外面
+//             if (status.isOut())
+//             {
+//                 Face newFace;
+//                 newFace.v1 = addPoint(triangle[0], 2);
+//                 newFace.v2 = addPoint(triangle[1], 2);
+//                 newFace.v3 = addPoint(triangle[2], 2);
+//                 if (face.t1 > 0)
+//                 {
+//                     newFace.t1 = addTexturePoint(texture[0], 2);
+//                     newFace.t2 = addTexturePoint(texture[1], 2);
+//                     newFace.t3 = addTexturePoint(texture[2], 2);
+//                 }
+//                 if (face.n1 > 0)
+//                 {
+//                     newFace.n1 = addNormal(normal[0], 2);
+//                     newFace.n2 = addNormal(normal[1], 2);
+//                     newFace.n3 = addNormal(normal[2], 2);
+//                 }
+//                 cuttedModel2->addFace(newFace);
+//                 continue;
+//             }
 
-            // 其它情况, 先把交点切出来
-            Vector3 newPoint1, newPoint2;
-            Vector2 newTexture1, newTexture2;
-            cutFace(area, triangle, texture, status,
-                newPoint1, newPoint2, newTexture1, newTexture2);
+//             // 其它情况, 先把交点切出来
+//             Vector3 newPoint1, newPoint2;
+//             Vector2 newTexture1, newTexture2;
+//             Vector3 newNormal1, newNormal2;
+//             cutFace(area, triangle, texture, normal, status,
+//                 newPoint1, newPoint2, newTexture1, newTexture2, newNormal1, newNormal2);
 
-            // 然后再看情况加三角形
-            int singleIndex = status.getSingleIndex() - 1;
-            if (status.getInpartNum() == 1)
-            {
-                Face newFace1;
-                newFace1.v1 = addPoint(triangle[singleIndex], 1);
-                newFace1.v2 = addPoint(newPoint1, 1);
-                newFace1.v3 = addPoint(newPoint2, 1);
-                if (face.t1 > 0)
-                {
-                    newFace1.t1 = addTexturePoint(texture[singleIndex], 1);
-                    newFace1.t2 = addTexturePoint(newTexture1, 1);
-                    newFace1.t3 = addTexturePoint(newTexture2, 1);
-                }
-                if (face.n1 > 0)
-                {
-                    newFace1.n1 = addNormal(normal[0], 1);
-                    newFace1.n2 = addNormal(normal[1], 1);
-                    newFace1.n3 = addNormal(normal[2], 1);
-                }
-                cuttedModel1->addFace(newFace1);
+//             // 然后再看情况加三角形
+//             int singleIndex = status.getSingleIndex() - 1;
+//             if (status.getInpartNum() == 1)
+//             {
+//                 Face newFace1;
+//                 newFace1.v1 = addPoint(triangle[singleIndex], 1);
+//                 newFace1.v2 = addPoint(newPoint1, 1);
+//                 newFace1.v3 = addPoint(newPoint2, 1);
+//                 if (face.t1 > 0)
+//                 {
+//                     newFace1.t1 = addTexturePoint(texture[singleIndex], 1);
+//                     newFace1.t2 = addTexturePoint(newTexture1, 1);
+//                     newFace1.t3 = addTexturePoint(newTexture2, 1);
+//                 }
+//                 if (face.n1 > 0)
+//                 {
+//                     newFace1.n1 = addNormal(normal[0], 1);
+//                     newFace1.n2 = addNormal(normal[1], 1);
+//                     newFace1.n3 = addNormal(normal[2], 1);
+//                 }
+//                 cuttedModel1->addFace(newFace1);
 
-                Face newFace2, newFace3;
-                Vector3 p1{triangle[(singleIndex + 1) % 3]},
-                        p2{triangle[(singleIndex + 2) % 3]};
-                Vector2 t1{ texture[(singleIndex + 1) % 3]},
-                        t2{ texture[(singleIndex + 2) % 3]};
+//                 Face newFace2, newFace3;
+//                 Vector3 p1{triangle[(singleIndex + 1) % 3]},
+//                         p2{triangle[(singleIndex + 2) % 3]};
+//                 Vector2 t1{ texture[(singleIndex + 1) % 3]},
+//                         t2{ texture[(singleIndex + 2) % 3]};
+//                 Vector3 n1{ normal[(singleIndex + 1) % 3]},
+//                         n2{ normal[(singleIndex + 2) % 3]};
 
-                newFace2.v1 = addPoint(p1, 2);
-                newFace2.v2 = addPoint(p2, 2);
-                newFace2.v3 = addPoint(newPoint2, 2);
-                newFace3.v1 = addPoint(newPoint2, 2);
-                newFace3.v2 = addPoint(newPoint1, 2);
-                newFace3.v3 = addPoint(p1, 2);
+//                 newFace2.v1 = addPoint(p1, 2);
+//                 newFace2.v2 = addPoint(p2, 2);
+//                 newFace2.v3 = addPoint(newPoint2, 2);
+//                 newFace3.v1 = addPoint(newPoint2, 2);
+//                 newFace3.v2 = addPoint(newPoint1, 2);
+//                 newFace3.v3 = addPoint(p1, 2);
 
-                if (face.t1 > 0)
-                {
-                    newFace2.t1 = addTexturePoint(t1, 2);
-                    newFace2.t2 = addTexturePoint(t2, 2);
-                    newFace2.t3 = addTexturePoint(newTexture2, 2);
-                    newFace3.t1 = addTexturePoint(newTexture2, 2);
-                    newFace3.t2 = addTexturePoint(newTexture1, 2);
-                    newFace3.t3 = addTexturePoint(t1, 2);
-                }
+//                 if (face.t1 > 0)
+//                 {
+//                     newFace2.t1 = addTexturePoint(t1, 2);
+//                     newFace2.t2 = addTexturePoint(t2, 2);
+//                     newFace2.t3 = addTexturePoint(newTexture2, 2);
+//                     newFace3.t1 = addTexturePoint(newTexture2, 2);
+//                     newFace3.t2 = addTexturePoint(newTexture1, 2);
+//                     newFace3.t3 = addTexturePoint(t1, 2);
+//                 }
 
-                if (face.n1 > 0)
-                {
-                    newFace2.n1 = addNormal(normal[0], 2);
-                    newFace2.n2 = addNormal(normal[1], 2);
-                    newFace2.n3 = addNormal(normal[2], 2);
-                    newFace3.n1 = addNormal(normal[2], 2);
-                    newFace3.n2 = addNormal(normal[1], 2);
-                    newFace3.n3 = addNormal(normal[0], 2);
-                }
+//                 if (face.n1 > 0)
+//                 {
+//                     newFace1.n1 = addNormal(n1, 2);
+//                     newFace1.n2 = addNormal(n2, 2);
+//                     newFace1.n3 = addNormal(newNormal2, 2);
+//                     newFace2.n1 = addNormal(newNormal2, 2);
+//                     newFace2.n2 = addNormal(newNormal1, 2);
+//                     newFace2.n3 = addNormal(n1, 2);
+//                 }
 
-                cuttedModel2->addFace(newFace2);
-                cuttedModel2->addFace(newFace3);
-            }
-            else if (status.getInpartNum() == 2)
-            {
-                Face newFace1, newFace2;
-                Vector3 p1{triangle[(singleIndex + 1) % 3]},
-                        p2{triangle[(singleIndex + 2) % 3]};
-                Vector2 t1{ texture[(singleIndex + 1) % 3]},
-                        t2{ texture[(singleIndex + 2) % 3]};
+//                 cuttedModel2->addFace(newFace2);
+//                 cuttedModel2->addFace(newFace3);
+//             }
+//             else if (status.getInpartNum() == 2)
+//             {
+//                 Face newFace1, newFace2;
+//                 Vector3 p1{triangle[(singleIndex + 1) % 3]},
+//                         p2{triangle[(singleIndex + 2) % 3]};
+//                 Vector2 t1{ texture[(singleIndex + 1) % 3]},
+//                         t2{ texture[(singleIndex + 2) % 3]};
+//                 Vector3 n1{  normal[(singleIndex + 1) % 3]},
+//                         n2{  normal[(singleIndex + 2) % 3]};
 
-                newFace1.v1 = addPoint(p1, 1);
-                newFace1.v2 = addPoint(p2, 1);
-                newFace1.v3 = addPoint(newPoint2, 1);
-                newFace2.v1 = addPoint(newPoint2, 1);
-                newFace2.v2 = addPoint(newPoint1, 1);
-                newFace2.v3 = addPoint(p1, 1);
+//                 newFace1.v1 = addPoint(p1, 1);
+//                 newFace1.v2 = addPoint(p2, 1);
+//                 newFace1.v3 = addPoint(newPoint2, 1);
+//                 newFace2.v1 = addPoint(newPoint2, 1);
+//                 newFace2.v2 = addPoint(newPoint1, 1);
+//                 newFace2.v3 = addPoint(p1, 1);
 
-                if (face.t1 > 0)
-                {
-                    newFace1.t1 = addTexturePoint(t1, 1);
-                    newFace1.t2 = addTexturePoint(t2, 1);
-                    newFace1.t3 = addTexturePoint(newTexture2, 1);
-                    newFace2.t1 = addTexturePoint(newTexture2, 1);
-                    newFace2.t2 = addTexturePoint(newTexture1, 1);
-                    newFace2.t3 = addTexturePoint(t1, 1);
-                }
+//                 if (face.t1 > 0)
+//                 {
+//                     newFace1.t1 = addTexturePoint(t1, 1);
+//                     newFace1.t2 = addTexturePoint(t2, 1);
+//                     newFace1.t3 = addTexturePoint(newTexture2, 1);
+//                     newFace2.t1 = addTexturePoint(newTexture2, 1);
+//                     newFace2.t2 = addTexturePoint(newTexture1, 1);
+//                     newFace2.t3 = addTexturePoint(t1, 1);
+//                 }
 
-                if (face.n1 > 0)
-                {
-                    newFace1.n1 = addNormal(normal[0], 1);
-                    newFace1.n2 = addNormal(normal[1], 1);
-                    newFace1.n3 = addNormal(normal[2], 1);
-                    newFace2.n1 = addNormal(normal[2], 1);
-                    newFace2.n2 = addNormal(normal[1], 1);
-                    newFace2.n3 = addNormal(normal[0], 1);
-                }
+//                 if (face.n1 > 0)
+//                 {
+//                     newFace1.n1 = addNormal(n1, 1);
+//                     newFace1.n2 = addNormal(n2, 1);
+//                     newFace1.n3 = addNormal(newNormal2, 1);
+//                     newFace2.n1 = addNormal(newNormal2, 1);
+//                     newFace2.n2 = addNormal(newNormal1, 1);
+//                     newFace2.n3 = addNormal(n1, 2);
+//                 }
 
-                cuttedModel1->addFace(newFace1);
-                cuttedModel1->addFace(newFace2);
+//                 cuttedModel1->addFace(newFace1);
+//                 cuttedModel1->addFace(newFace2);
 
-                Face newFace3;
-                newFace3.v1 = addPoint(triangle[singleIndex], 2);
-                newFace3.v2 = addPoint(newPoint1, 2);
-                newFace3.v3 = addPoint(newPoint2, 2);
-                if (face.t1 > 0)
-                {
-                    newFace3.t1 = addTexturePoint(texture[singleIndex], 2);
-                    newFace3.t2 = addTexturePoint(newTexture1, 2);
-                    newFace3.t3 = addTexturePoint(newTexture2, 2);
-                }
-                if (face.n1 > 0)
-                {
-                    newFace3.n1 = addNormal(normal[0], 2);
-                    newFace3.n2 = addNormal(normal[1], 2);
-                    newFace3.n3 = addNormal(normal[2], 2);
-                }
-                cuttedModel2->addFace(newFace3);
-            }
-        }
-    }
+//                 Face newFace3;
+//                 newFace3.v1 = addPoint(triangle[singleIndex], 2);
+//                 newFace3.v2 = addPoint(newPoint1, 2);
+//                 newFace3.v3 = addPoint(newPoint2, 2);
+//                 if (face.t1 > 0)
+//                 {
+//                     newFace3.t1 = addTexturePoint(texture[singleIndex], 2);
+//                     newFace3.t2 = addTexturePoint(newTexture1, 2);
+//                     newFace3.t3 = addTexturePoint(newTexture2, 2);
+//                 }
+//                 if (face.n1 > 0)
+//                 {
+//                     newFace3.n1 = addNormal(normal[0], 2);
+//                     newFace3.n2 = addNormal(normal[1], 2);
+//                     newFace3.n3 = addNormal(normal[2], 2);
+//                 }
+//                 cuttedModel2->addFace(newFace3);
+//             }
+//         }
+//     }
     
-    // map映射的索引即为点的索引
-    cuttedModel1->initSpaces(pointMap1.size(), textureMap1.size(), normalMap1.size());
-    cuttedModel2->initSpaces(pointMap2.size(), textureMap2.size(), normalMap2.size());
+//     // map映射的索引即为点的索引
+//     cuttedModel1->initSpaces(pointMap1.size(), textureMap1.size(), normalMap1.size());
+//     cuttedModel2->initSpaces(pointMap2.size(), textureMap2.size(), normalMap2.size());
 
-    for (const auto& kv : pointMap1)
-    {
-        auto point = kv.first;
-        auto index = kv.second;
-        cuttedModel1->setPoint(index, point);
-        cuttedModel1->minX = point.x < cuttedModel1->minX ? point.x : cuttedModel1->minX;
-        cuttedModel1->minY = point.y < cuttedModel1->minY ? point.y : cuttedModel1->minY;
-        cuttedModel1->minZ = point.z < cuttedModel1->minZ ? point.z : cuttedModel1->minZ;
-        cuttedModel1->maxX = point.x > cuttedModel1->maxX ? point.x : cuttedModel1->maxX;
-        cuttedModel1->maxY = point.y > cuttedModel1->maxY ? point.y : cuttedModel1->maxY;
-        cuttedModel1->maxZ = point.z > cuttedModel1->maxZ ? point.z : cuttedModel1->maxZ;
-    }
-    pointMap1.clear();
+//     for (const auto& kv : pointMap1)
+//     {
+//         auto point = kv.first;
+//         auto index = kv.second;
+//         cuttedModel1->setPoint(index, point);
+//         cuttedModel1->minX = point.x < cuttedModel1->minX ? point.x : cuttedModel1->minX;
+//         cuttedModel1->minY = point.y < cuttedModel1->minY ? point.y : cuttedModel1->minY;
+//         cuttedModel1->minZ = point.z < cuttedModel1->minZ ? point.z : cuttedModel1->minZ;
+//         cuttedModel1->maxX = point.x > cuttedModel1->maxX ? point.x : cuttedModel1->maxX;
+//         cuttedModel1->maxY = point.y > cuttedModel1->maxY ? point.y : cuttedModel1->maxY;
+//         cuttedModel1->maxZ = point.z > cuttedModel1->maxZ ? point.z : cuttedModel1->maxZ;
+//     }
+//     pointMap1.clear();
 
-    for (const auto& kv : textureMap1)
-    {
-        auto texturePoint = kv.first;
-        auto index = kv.second;
-        cuttedModel1->setTexturePoint(index, texturePoint);
-    }
-    textureMap1.clear();
+//     for (const auto& kv : textureMap1)
+//     {
+//         auto texturePoint = kv.first;
+//         auto index = kv.second;
+//         cuttedModel1->setTexturePoint(index, texturePoint);
+//     }
+//     textureMap1.clear();
 
-    for (const auto& kv : normalMap1)
-    {
-        auto normal = kv.first;
-        auto index = kv.second;
-        cuttedModel1->setNormal(index, normal);
-    }
-    normalMap1.clear();
+//     for (const auto& kv : normalMap1)
+//     {
+//         auto normal = kv.first;
+//         auto index = kv.second;
+//         cuttedModel1->setNormal(index, normal);
+//     }
+//     normalMap1.clear();
 
-    for (const auto& kv : pointMap2)
-    {
-        auto point = kv.first;
-        auto index = kv.second;
-        cuttedModel2->setPoint(index, point);
-        cuttedModel2->minX = point.x < cuttedModel2->minX ? point.x : cuttedModel2->minX;
-        cuttedModel2->minY = point.y < cuttedModel2->minY ? point.y : cuttedModel2->minY;
-        cuttedModel2->minZ = point.z < cuttedModel2->minZ ? point.z : cuttedModel2->minZ;
-        cuttedModel2->maxX = point.x > cuttedModel2->maxX ? point.x : cuttedModel2->maxX;
-        cuttedModel2->maxY = point.y > cuttedModel2->maxY ? point.y : cuttedModel2->maxY;
-        cuttedModel2->maxZ = point.z > cuttedModel2->maxZ ? point.z : cuttedModel2->maxZ;
-    }
-    pointMap2.clear();
+//     for (const auto& kv : pointMap2)
+//     {
+//         auto point = kv.first;
+//         auto index = kv.second;
+//         cuttedModel2->setPoint(index, point);
+//         cuttedModel2->minX = point.x < cuttedModel2->minX ? point.x : cuttedModel2->minX;
+//         cuttedModel2->minY = point.y < cuttedModel2->minY ? point.y : cuttedModel2->minY;
+//         cuttedModel2->minZ = point.z < cuttedModel2->minZ ? point.z : cuttedModel2->minZ;
+//         cuttedModel2->maxX = point.x > cuttedModel2->maxX ? point.x : cuttedModel2->maxX;
+//         cuttedModel2->maxY = point.y > cuttedModel2->maxY ? point.y : cuttedModel2->maxY;
+//         cuttedModel2->maxZ = point.z > cuttedModel2->maxZ ? point.z : cuttedModel2->maxZ;
+//     }
+//     pointMap2.clear();
 
-    for (const auto& kv : textureMap2)
-    {
-        auto texturePoint = kv.first;
-        auto index = kv.second;
-        cuttedModel2->setTexturePoint(index, texturePoint);
-    }
-    textureMap2.clear();
+//     for (const auto& kv : textureMap2)
+//     {
+//         auto texturePoint = kv.first;
+//         auto index = kv.second;
+//         cuttedModel2->setTexturePoint(index, texturePoint);
+//     }
+//     textureMap2.clear();
 
-    for (const auto& kv : normalMap2)
-    {
-        auto normal = kv.first;
-        auto index = kv.second;
-        cuttedModel2->setNormal(index, normal);
-    }
-    normalMap2.clear();
+//     for (const auto& kv : normalMap2)
+//     {
+//         auto normal = kv.first;
+//         auto index = kv.second;
+//         cuttedModel2->setNormal(index, normal);
+//     }
+//     normalMap2.clear();
 
-    std::chrono::duration<double> cutElapsedSeconds = std::chrono::system_clock::now() - begin;
-    // std::cout << "Cut time: " << cutElapsedSeconds.count() << "s" << std::endl;
-    // std::cout << "min point: " << minX << " " << minY << " " << minZ << std::endl;
-}
+//     std::chrono::duration<double> cutElapsedSeconds = std::chrono::system_clock::now() - begin;
+//     // std::cout << "Cut time: " << cutElapsedSeconds.count() << "s" << std::endl;
+//     // std::cout << "min point: " << minX << " " << minY << " " << minZ << std::endl;
+// }
 
-void ObjCutter::cutFace(const Area& area, const Vector3* triangle, const Vector2* triangleTexture, const TriangleStatus& status,
-                        Vector3& newPoint1, Vector3& newPoint2, Vector2& newTexturePoint1, Vector2& newTexturePoint2)
+void ObjCutter::cutFace(const Area& area, const Vector3* triangle, const Vector2* triangleTexture, const Vector3* normal, const TriangleStatus& status,
+                        Vector3& newPoint1, Vector3& newPoint2, Vector2& newTexturePoint1, Vector2& newTexturePoint2, 
+                        Vector3& newNormal1, Vector3& newNormal2)
 {
     int singleIndex = status.getSingleIndex() - 1;
 
@@ -1257,6 +1321,13 @@ void ObjCutter::cutFace(const Area& area, const Vector3* triangle, const Vector2
         t2 = triangleTexture[(singleIndex + 2) % 3];
     }
 
+    Vector3 nSingle, n1, n2;
+    if(normal){
+        nSingle = normal[singleIndex];
+        n1 = normal[(singleIndex + 1) % 3];
+        n2 = normal[(singleIndex + 2) % 3];
+    }
+
     // 计算单一点与其他两点的连线与平面的两个交点
     newPoint1 = area.getIntersectPoint(pSingle, p1);
     newPoint2 = area.getIntersectPoint(pSingle, p2);
@@ -1265,10 +1336,17 @@ void ObjCutter::cutFace(const Area& area, const Vector3* triangle, const Vector2
         return;
 
     // 用相似三角形计算新的纹理坐标
-    float rate1 = (pSingle - p1).length() /
+    double rate1 = (pSingle - p1).length() /
         (newPoint1 - p1).length();
-    float rate2 = (pSingle - p2).length() /
+    double rate2 = (pSingle - p2).length() /
         (newPoint2 - p2).length();
     newTexturePoint1 = t1 + (tSingle - t1) / rate1;
     newTexturePoint2 = t2 + (tSingle - t2) / rate2;
+
+    if(!normal)
+        return;
+    
+    // 计算法向量插值
+    newNormal1 = n1 + (nSingle - n1) / rate1;
+    newNormal2 = n2 + (nSingle - n2) / rate2;
 }

@@ -4,3 +4,5 @@ terra_obj/
 splited_obj/
 out/
 obj模型/
+.vscode/
+preprocess_log.txt

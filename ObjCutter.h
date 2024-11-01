@@ -29,7 +29,7 @@ protected:
 
     std::string fileDir;
     std::string fileName;
-    std::chrono::duration<double> loadElapsedSeconds{};
+    std::chrono::duration<float> loadElapsedSeconds{};
 
 public:
     ObjModel() = default;
@@ -37,7 +37,7 @@ public:
     // base actions
     bool load(const std::string& filename);
     void info();
-    bool save(const std::string& fileName, const float & model_minz);
+    bool save(const std::string& fileName, const double & model_minz);
     bool empty() const;
 
     Vector3 getCenter() const;
@@ -81,15 +81,16 @@ private:
 public:
     ObjCutter() = default;
     ObjCutter(const std::string& filedir) : ObjModel(filedir) {};
-    ObjCutter* cut(const Area& area);
+    std::unique_ptr<ObjCutter> cut(const Area& area);
     void cut(const Area& area, ObjCutter* & cuttedModel1, ObjCutter* & cuttedModel2);
 
     // 计算两点与域的交点函数
     static void cutFace(const Area& area, const Vector3* triangle,
-                const Vector2* triangleTexture, const TriangleStatus& status,
+                const Vector2* triangleTexture, const Vector3* normal, const TriangleStatus& status,
                 // output
                 Vector3& newPoint1, Vector3& newPoint2,
-                Vector2& newTexturePoint1, Vector2& newTexturePoint2);
+                Vector2& newTexturePoint1, Vector2& newTexturePoint2,
+                Vector3& newNormal1, Vector3& newNormal2);
 };
 
 

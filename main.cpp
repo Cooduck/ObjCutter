@@ -27,22 +27,19 @@ std::mutex mtx1, mtx2;
 std::condition_variable cv1, cv2;
 int done_cnt1 = 0, done_cnt2 = 0;
 int end_sign1, end_sign2;
-std::queue<std::pair<ObjCutter*, float>> vector1;
-std::queue<std::pair<ObjCutter*, std::pair<float, float>>> vector2;
+std::deque<std::pair<std::unique_ptr<ObjCutter>, float>> vector1;
+std::deque<std::pair<std::unique_ptr<ObjCutter>, std::pair<float, float>>> vector2;
 long long count_splited_obj = 0;
 float model_minz = 0;
 
-void producer1(ObjCutter* objCutter, const int &numStepsX, const float &stepSize, const Vector3 &minPoint, const Vector3 &maxPoint) {
+void producer1(std::unique_ptr<ObjCutter> objCutter, const int &numStepsX, const float &stepSize, const Vector3 &minPoint, const Vector3 &maxPoint) {
     for (int i = 1; i <= numStepsX; i++) {
         float x = minPoint.x + i * stepSize;
         Plane plane = Plane(Vector3(x, minPoint.y, minPoint.z), Vector3(-1, 0, 0));
-        ObjCutter* cutObjX = objCutter->cut(plane);
+        auto cutObjX = objCutter->cut(plane);
         Plane planeOtherSide = Plane(Vector3(x, maxPoint.y, minPoint.z), Vector3(1, 0, 0));
-        auto oldTempObj = objCutter;
-        objCutter = objCutter->cut(planeOtherSide);
-        if(i > 1){
-            delete oldTempObj;
-        }
+        auto oldTempObj = std::move(objCutter);
+        objCutter = oldTempObj->cut(planeOtherSide);
 
         {
             std::unique_lock<std::mutex> lock(mtx1);
@@ -50,12 +47,11 @@ void producer1(ObjCutter* objCutter, const int &numStepsX, const float &stepSize
                 end_sign2 -= 1;
             }
             else if(cutObjX && !cutObjX->empty()) {
-                vector1.push(std::make_pair(cutObjX, x));
+                vector1.emplace_back(std::make_pair(std::move(cutObjX), x));
             }
         }
         cv1.notify_all();
     }
-    delete objCutter;
 
     {
         std::unique_lock<std::mutex> lock(mtx1);
@@ -66,7 +62,7 @@ void producer1(ObjCutter* objCutter, const int &numStepsX, const float &stepSize
 
 void producer2(const int &numStepsY, const float &stepSize, const Vector3 &minPoint, const Vector3 &maxPoint) {
     while (true) {
-        ObjCutter* cutObjX = nullptr;
+        std::unique_ptr<ObjCutter> cutObjX = nullptr;
         float x;
 
         {
@@ -74,9 +70,9 @@ void producer2(const int &numStepsY, const float &stepSize, const Vector3 &minPo
             cv1.wait(lock, [&] { return !vector1.empty() || done_cnt1 == end_sign1; });
 
             if (!vector1.empty()) {
-                cutObjX = vector1.front().first;
+                cutObjX = std::move(vector1.front().first);
                 x = vector1.front().second;
-                vector1.pop();
+                vector1.pop_front();
             } else if (done_cnt1 == end_sign1 && vector1.empty()) {
                 break;  // 没有任务并且 producer1 已完成
             }
@@ -86,22 +82,20 @@ void producer2(const int &numStepsY, const float &stepSize, const Vector3 &minPo
             for (int j = 1; j <= numStepsY; j++) {
                 float y = minPoint.y + j * stepSize;
                 Plane plane2 = Plane(Vector3(x, y, minPoint.z), Vector3(0, -1, 0));
-                ObjCutter* cutObjY = cutObjX->cut(plane2);
-                auto oldCutObjX = cutObjX;
+                auto cutObjY = cutObjX->cut(plane2);
+                auto oldCutObjX = std::move(cutObjX);
                 Plane plane2OtherSide = Plane(Vector3(x, y, maxPoint.z), Vector3(0, 1, 0));
-                cutObjX = cutObjX->cut(plane2OtherSide);
-                delete oldCutObjX;
+                cutObjX = oldCutObjX->cut(plane2OtherSide);
 
                 {
                     std::unique_lock<std::mutex> lock(mtx2);
                     if (cutObjY && !cutObjY->empty()) {
-                        vector2.push(std::make_pair(cutObjY, std::make_pair(x, y)));
+                        vector2.emplace_back(std::make_pair(std::move(cutObjY), std::make_pair(x, y)));
                     }
                 }
                 cv2.notify_all(); 
             }
         }
-        delete cutObjX;
 
         {
             std::unique_lock<std::mutex> lock(mtx2);
@@ -113,7 +107,7 @@ void producer2(const int &numStepsY, const float &stepSize, const Vector3 &minPo
 
 void producer3(const int &numStepsZ, const float &stepSize, const Vector3 &minPoint, const std::string &outputDir) {
     while (true) {
-        ObjCutter* cutObjY = nullptr;
+        std::unique_ptr<ObjCutter> cutObjY = nullptr;
         float x, y;
 
         {
@@ -121,10 +115,10 @@ void producer3(const int &numStepsZ, const float &stepSize, const Vector3 &minPo
             cv2.wait(lock, [&] { return !vector2.empty() || done_cnt2 == end_sign2; });
 
             if (!vector2.empty()) {
-                cutObjY = vector2.front().first;
+                cutObjY = std::move(vector2.front().first);
                 x = vector2.front().second.first;
                 y = vector2.front().second.second;
-                vector2.pop();
+                vector2.pop_front();
             } else if (done_cnt2 == end_sign2 && vector2.empty()) {
                 break;  // 没有任务并且 producer2 已完成
             }
@@ -134,23 +128,19 @@ void producer3(const int &numStepsZ, const float &stepSize, const Vector3 &minPo
             for (int k = 1; k <= numStepsZ; k++) {
                 float z = minPoint.z + k * stepSize;
                 Plane plane3 = Plane(Vector3(x, y, z), Vector3(0, 0, -1));
-                ObjCutter* cutObj = cutObjY->cut(plane3);
+                auto cutObj = cutObjY->cut(plane3);
 
                 if (cutObj && !cutObj->empty()) {
                     //string fileName = outputDir + std::to_string((int)x) + "_" + std::to_string((int)y) + "_" + std::to_string((int)z) + ".obj";
                     string fileName = outputDir + std::to_string(count_splited_obj++) + ".obj";
                     cutObj->save(fileName, model_minz);
                 }
-                delete cutObj;
 
-                auto oldCutObjY = cutObjY;
+                auto oldCutObjY = std::move(cutObjY);
                 Plane plane3OtherSide = Plane(Vector3(x, y, z), Vector3(0, 0, 1));
-                cutObjY = cutObjY->cut(plane3OtherSide);
-                delete oldCutObjY;
-
+                cutObjY = oldCutObjY->cut(plane3OtherSide);
             }
         }
-        delete cutObjY;
     }
 }
 
@@ -200,31 +190,22 @@ void preProcess(const Vector3 &ue5_center, const Vector3 &ue5_model_center, cons
 
 void splitObj(const std::string& objPath, const std::string& outputDir, const Vector3 &ue5_center, const Vector3 &ue5_model_center, const Vector3 &cutting_step)
 {
-    ObjCutter objCutter;
-    bool success = objCutter.load(objPath);
+    std::unique_ptr<ObjCutter> objCutter = std::make_unique<ObjCutter>(objPath);
+    bool success = objCutter->load(objPath);
     if (!success)
     {
         std::cerr << "Failed to load file "<< objPath << "." << std::endl;
         std::cout << "Failed to load OBJ file." << std::endl;
         return;
     }
-    objCutter.info();
+    objCutter->info();
 
-    Vector3 minPoint = objCutter.getMinPoint();
-    Vector3 maxPoint = objCutter.getMaxPoint();
+    Vector3 minPoint = objCutter->getMinPoint();
+    Vector3 maxPoint = objCutter->getMaxPoint();
     std::cout << "minPoint: " << minPoint << std::endl;
     std::cout << "maxPoint: " << maxPoint << std::endl << std::endl;
     model_minz = minPoint.z;
-
-    // float x_len = std::abs(maxPoint.x - minPoint.x);
-    // float x_stepSize = std::ceil(x_len / x_block_num);
-    // float y_len = std::abs(maxPoint.y - minPoint.y);
-    // float y_stepSize = std::ceil(y_len / y_block_num);
-    // float z_len = std::abs(maxPoint.z - minPoint.z);
-    // float z_stepSize = std::ceil(z_len / z_block_num);
-    // int numStepsX = std::ceil((maxPoint.x - minPoint.x) / x_stepSize);
-    // int numStepsY = std::ceil((maxPoint.y - minPoint.y) / y_stepSize);
-    // int numStepsZ = std::ceil((maxPoint.z - minPoint.z) / z_stepSize);
+    
     preProcess(ue5_center, ue5_model_center, cutting_step, minPoint, maxPoint);
     std::cout << "After preProcess: " << std::endl;
     std::cout << "minPoint: " << minPoint << std::endl;
@@ -242,7 +223,7 @@ void splitObj(const std::string& objPath, const std::string& outputDir, const Ve
 
     auto begin = std::chrono::system_clock::now();
 
-    std::thread producer1Thread(producer1, &objCutter, std::cref(numStepsX), std::cref(cutting_step.x), std::cref(minPoint), std::cref(maxPoint));
+    std::thread producer1Thread(producer1, std::move(objCutter), std::cref(numStepsX), std::cref(cutting_step.x), std::cref(minPoint), std::cref(maxPoint));
 
     std::vector<std::thread> producer2Threads;
     for (int i = 0; i < sysInfo.dwNumberOfProcessors / 2; ++i) {
@@ -264,7 +245,7 @@ void splitObj(const std::string& objPath, const std::string& outputDir, const Ve
         t.join();
     }
 
-    std::chrono::duration<double> cut_spend_time = std::chrono::system_clock::now() - begin;
+    std::chrono::duration<float> cut_spend_time = std::chrono::system_clock::now() - begin;
     std::cout << "The cutting process takes " << cut_spend_time.count() << "s" << std::endl;
 }
 
@@ -338,7 +319,7 @@ void splitObj(const std::string& objPath, const std::string& outputDir, const Ve
 //         }
 //         delete cutObjX;
 //     }
-//     std::chrono::duration<double> cut_spend_time = std::chrono::system_clock::now() - begin;
+//     std::chrono::duration<float> cut_spend_time = std::chrono::system_clock::now() - begin;
 //     std::cout << "The cutting process takes " << cut_spend_time.count() << "s" << std::endl;
 // }
 
@@ -423,38 +404,6 @@ int main(int argc, char* argv[])
 {
     SetConsoleOutputCP(CP_UTF8);
 
-    // if (argc < 3) {
-    //     std::cerr << "Usage: " << argv[0] << " <targetDir/targetObj> <outputDir> [x_block_num] [y_block_num] [z_block_num]" << std::endl;
-    //     std::cerr << "<targetDir/targetObj> <outputDir> is required, the other are optional." << std::endl;
-    //     return 1;
-    // }
-
-    // // std::string targetDir = argv[1];
-    // std::string targetDir = ".\\tt.obj";
-    // int path_flag = check_path(targetDir);
-    // if(path_flag == 0){
-    //     return 0;
-    // }
-    // else if(path_flag == 1){
-    //     targetDir = ensureTrailingBackslash(targetDir);
-    // }
-    // // std::string outputDir = argv[2];
-    // std::string outputDir = ".\\splited_obj\\";
-    // outputDir = ensureTrailingBackslash(outputDir);
-    // int x_block_num = 2;
-    // int y_block_num = 2;
-    // int z_block_num = 2; 
-
-    // if (argc >= 4) {
-    //     x_block_num = std::stoi(argv[3]);
-    // }
-    // if (argc >= 5) {
-    //     y_block_num = std::stoi(argv[4]);
-    // }
-    // if (argc >= 6) {
-    //     z_block_num = std::stoi(argv[5]);
-    // }
-
     if (argc < 13) {
         std::cerr << "Usage: " << argv[0] << " <targetObj> <outputDir> " \
                     << "[ue5_model_center_x] [ue5_model_center_y] [ue5_model_center_z] " \
@@ -466,7 +415,7 @@ int main(int argc, char* argv[])
     }
 
     std::string targetDir = argv[1];
-    // std::string targetDir = ".\\JL_TR5_Tower_LY.obj";
+    // std::string targetDir = ".\\JL_T1 Tower_opt 2_aviation.obj";
     int path_flag = check_path(targetDir);
     if(path_flag == 0){
         return 0;
@@ -490,16 +439,26 @@ int main(int argc, char* argv[])
     cutting_step.y = std::stof(argv[10]);
     cutting_step.z = std::stof(argv[11]);
     scale = std::stof(argv[12]);
-    // ue5_model_center.x = 10000.0;
-    // ue5_model_center.y = 10000.0;
+    // ue5_model_center.x = 0.0;
+    // ue5_model_center.y = 0.0;
     // ue5_model_center.z = 0.0;
     // ue5_center.x = 0;
     // ue5_center.y = 0;
     // ue5_center.z = 0;
-    // cutting_step.x = 10000;
-    // cutting_step.y = 10000;
-    // cutting_step.z = 10000;
+    // cutting_step.x = 2000;
+    // cutting_step.y = 2000;
+    // cutting_step.z = 6000;
     // scale = 100;
+    // ue5_model_center.x = 0.0;
+    // ue5_model_center.y = 0.0;
+    // ue5_model_center.z = 0.0;
+    // ue5_center.x = 0.0;
+    // ue5_center.y = 0.0;
+    // ue5_center.z = 0.0;
+    // cutting_step.x = 15;
+    // cutting_step.y = 15;
+    // cutting_step.z = 15;
+    // scale = 1;
 
     ue5_center = ue5_center / scale;
     ue5_model_center = ue5_model_center / scale;
@@ -525,7 +484,7 @@ int main(int argc, char* argv[])
                     if (p2.is_regular_file() && p2.path().extension() == ".obj")
                     {
                         std::string objPath = p2.path().string();
-                        // splitObj(objPath, x_block_num, y_block_num, z_block_num, outputDirSplited);
+                        splitObj(objPath, outputDirSplited, ue5_center, ue5_model_center, cutting_step);
                     }
                     else if(p2.is_directory())
                     {
@@ -538,7 +497,7 @@ int main(int argc, char* argv[])
                     }
                     
                 }
-                std::chrono::duration<double> cut_spend_time = std::chrono::system_clock::now() - begin;
+                std::chrono::duration<float> cut_spend_time = std::chrono::system_clock::now() - begin;
                 std::cout << std::endl;
                 std::cout << "finished: " << pStr << " to " << outputDirSplited << std::endl;
                 std::cerr << "finished: " << pStr << " to " << outputDirSplited << std::endl;
@@ -563,7 +522,7 @@ int main(int argc, char* argv[])
 
         splitObj(targetDir, outputDirSplited, ue5_center, ue5_model_center, cutting_step);
 
-        std::chrono::duration<double> cut_spend_time = std::chrono::system_clock::now() - begin;
+        std::chrono::duration<float> cut_spend_time = std::chrono::system_clock::now() - begin;
         std::cout << std::endl;
         std::cout << "finished: " << targetDir << " to " << outputDirSplited << std::endl;
         std::cerr << "finished: " << targetDir << " to " << outputDirSplited << std::endl;
