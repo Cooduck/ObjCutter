@@ -30,6 +30,7 @@ protected:
     std::string fileDir;
     std::string fileName;
     std::chrono::duration<float> loadElapsedSeconds{};
+    Vector3 blockCenter;   // 切出来的块的中心点
 
 public:
     ObjModel() = default;
@@ -44,6 +45,8 @@ public:
     Vector3 getBottomCenter() const;
     Vector3 getMinPoint() const;
     Vector3 getMaxPoint() const;
+    void setblockCenter(float x, float y, float z);
+    Vector3 getblockCenter() const;
     string getDir() const;
 
     // for setting data

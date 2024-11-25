@@ -19,6 +19,7 @@
 #include <future>
 #include <cctype>
 #include <unordered_map>
+#include <cmath>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -104,11 +105,25 @@ bool ObjModel::save(const std::string& fileName, const double & model_minz)
     }
     else{
         auto now = std::chrono::system_clock::now();
+        float newMinX = INT_MAX;
+        float newMinY = INT_MAX;
+        float newMinZ = INT_MAX;
+        float newMaxX = -INT_MAX;
+        float newMaxY = -INT_MAX;
+        float newMaxZ = -INT_MAX;
         string content = "mtllib " + mtllib + '\n';
         fputs(content.c_str(), file);
         for (auto& point : points)
         {
-            point.z -= model_minz;    // 模型上移，使得最低点z轴坐标为0
+            // point.z -= model_minz;    // 模型上移，使得最低点z轴坐标为0
+            point = point - blockCenter;   // 将切出来的块的坐标轴调整到该块的中心
+            point.y = -point.y;     // 由于ue5中的y轴与obj文件中的y轴方向是相反的（即本来在obj文件中x=1的点，其在ue5中对应的x坐标在-1）,所以移动坐标系要取反 
+            newMinX = point.x < newMinX ? point.x : newMinX;
+            newMinY = point.y < newMinY ? point.y : newMinY;
+            newMinZ = point.z < newMinZ ? point.z : newMinZ;
+            newMaxX = point.x > newMaxX ? point.x : newMaxX;
+            newMaxY = point.y > newMaxY ? point.y : newMaxY;
+            newMaxZ = point.z > newMaxZ ? point.z : newMaxZ;
             content = "v " + point.Vector3_to_string() + '\n';
             fputs(content.c_str(), file);
         }
@@ -123,16 +138,24 @@ bool ObjModel::save(const std::string& fileName, const double & model_minz)
             fputs(content.c_str(), file);
         }
         for(const auto& mtlFace : faces.mtlFaces){
-            if (!mtlFace.mtl.empty() && !mtlFace.faces.empty()){
+            if (!mtlFace.faces.empty()){
                 content = "usemtl " + mtlFace.mtl + '\n';
                 fputs(content.c_str(), file);
 
                 for(auto& f : mtlFace.faces) {
-                content = "f " + f.Face_to_string() + '\n';
-                fputs(content.c_str(), file);
+                    content = "f " + f.Face_to_string() + '\n';
+                    fputs(content.c_str(), file);
                 }
             }
         }
+        // 将边界信息以注释的形式写入文件
+        content = "# MinX: " + std::to_string(newMinX) + ", "
+                  + "MinY: " + std::to_string(newMinY) + ", "
+                  + "MinZ: " + std::to_string(newMinZ) + "\n"
+                  + "# MaxX: " + std::to_string(newMaxX) + ", "
+                  + "MaxY: " + std::to_string(newMaxY) + ", "
+                  + "MaxZ: " + std::to_string(newMaxZ) + '\n';
+        fputs(content.c_str(), file);
         fclose(file);
         auto end = std::chrono::system_clock::now();
         std::chrono::duration<double> saveElapsedSeconds = end - now;
@@ -214,6 +237,16 @@ Vector3 ObjModel::getMinPoint() const
 Vector3 ObjModel::getMaxPoint() const
 {
     return Vector3(maxX, maxY, maxZ);
+}
+
+void ObjModel::setblockCenter(float x, float y, float z){
+    blockCenter.x = x;
+    blockCenter.y = y;
+    blockCenter.z = z;
+}
+
+Vector3 ObjModel::getblockCenter() const{
+    return blockCenter;
 }
 
 string ObjModel::getDir() const
