@@ -139,6 +139,7 @@ void producer3(const int &numStepsZ, const float &stepSize, const Vector3 &minPo
                     string fileName = outputDir + std::to_string(std::round(ue5_cutting_model_center.x)) + "_" + std::to_string(std::round(ue5_cutting_model_center.y)) + "_" + std::to_string(std::round(ue5_cutting_model_center.z)) + ".obj";
                     // string fileName = outputDir + std::to_string(count_splited_obj++) + ".obj";
                     cutObj->save(fileName, model_minz);
+                    ++count_splited_obj;
                 }
 
                 auto oldCutObjY = std::move(cutObjY);
@@ -255,80 +256,6 @@ void splitObj(const std::string& objPath, const std::string& outputDir, const Ve
     std::cout << "The cutting process takes " << cut_spend_time.count() << "s" << std::endl;
 }
 
-// void splitObj(const string& objPath, const string& outputDir, const Vector3 &ue5_center, const Vector3 &ue5_model_center, const Vector3 &cutting_step)
-// {
-//     std::unique_ptr<ObjCutter> objCutter = std::make_unique<ObjCutter>(objPath);
-//     bool success = objCutter->load(objPath);
-//     if (!success)
-//     {
-//         std::cout << "Failed to load OBJ file." << std::endl;
-//         return;
-//     }
-//     objCutter->info();
-
-//     Vector3 minPoint = objCutter->getMinPoint();
-//     Vector3 maxPoint = objCutter->getMaxPoint();
-//     std::cout << "minPoint: " << minPoint << std::endl;
-//     std::cout << "maxPoint: " << maxPoint << std::endl;
-//     model_minz = minPoint.z;
-
-//     preProcess(ue5_center, ue5_model_center, cutting_step, minPoint, maxPoint);
-//     std::cout << "After preProcess: " << std::endl;
-//     std::cout << "minPoint: " << minPoint << std::endl;
-//     std::cout << "maxPoint: " << maxPoint << std::endl;
-
-//     int numStepsX = std::ceil((maxPoint.x - minPoint.x) / cutting_step.x);
-//     int numStepsY = std::ceil((maxPoint.y - minPoint.y) / cutting_step.y);
-//     int numStepsZ = std::ceil((maxPoint.z - minPoint.z) / cutting_step.z);
-
-//     auto begin = std::chrono::system_clock::now();
-
-//     for (int i = 1; i <= numStepsX; i++)
-//     {
-//         float x = minPoint.x + i * cutting_step.x;
-//         Plane plane = Plane(Vector3(x, minPoint.y, minPoint.z), Vector3(-1, 0, 0));
-//         auto cutObjX = objCutter->cut(plane);
-//         Plane planeOtherSide = Plane(Vector3(x, minPoint.y, minPoint.z), Vector3(1, 0, 0));
-//         auto oldTempObj = std::move(objCutter);
-//         objCutter = oldTempObj->cut(planeOtherSide);
-
-//         for (int j = 1; j <= numStepsY; j++)
-//         {
-//             float y = minPoint.y + j * cutting_step.y;
-//             Plane plane2 = Plane(Vector3(x, y, minPoint.z), Vector3(0, -1, 0));
-//             auto cutObjY = cutObjX->cut(plane2);
-//             auto oldCutObjX = std::move(cutObjX);
-//             Plane plane2OtherSide = Plane(Vector3(x, y, minPoint.z), Vector3(0, 1, 0));
-//             cutObjX = oldCutObjX->cut(plane2OtherSide);
-            
-//             for (int k = 1; k <= numStepsZ; k++)
-//             {
-//                 float z = minPoint.z + k * cutting_step.z;
-//                 Plane plane3 = Plane(Vector3(x, y, z), Vector3(0, 0, -1));
-//                 auto cutObj = cutObjY->cut(plane3);
-//                 if (cutObj && !cutObj->empty())
-//                 {
-//                     cutObj->block_center.x = (x + (x - cutting_step.x)) * 0.5;
-//                     cutObj->block_center.y = (y + (y - cutting_step.y)) * 0.5;
-//                     cutObj->block_center.z = (z + (z - cutting_step.z)) * 0.5;
-//                     Vector3 ue5_cutting_model_center = (cutObj->getCenter() - modelBottomCenter + ue5_model_center) * scale;
-//                     string fileName = outputDir + std::to_string(ue5_cutting_model_center.x) + "_" + std::to_string(ue5_cutting_model_center.y) + "_" + std::to_string(ue5_cutting_model_center.z) + ".obj";
-//                     // string fileName = outputDir + std::to_string((int)x) + "_" + std::to_string((int)y) + "_" + std::to_string((int)z) + ".obj";
-//                     // string fileName = outputDir + std::to_string(count_splited_obj++) + ".obj";
-//                     cutObj->save(fileName, model_minz);
-//                 }
-                
-//                 auto oldCutObjY = std::move(cutObjY);
-//                 Plane plane3OtherSide = Plane(Vector3(x, y, z), Vector3(0, 0, 1));
-//                 cutObjY = oldCutObjY->cut(plane3OtherSide);
-//             }
-//         }
-//     }
-//     std::chrono::duration<float> cut_spend_time = std::chrono::system_clock::now() - begin;
-//     std::cout << "The cutting process takes " << cut_spend_time.count() << "s" << std::endl;
-// }
-
-
 // 复制文件
 void copy_file(const std::wstring& src, const std::wstring& dest) {
     CopyFileW(src.c_str(), dest.c_str(), FALSE);
@@ -380,27 +307,28 @@ std::string ensureTrailingBackslash(const std::string& folderPath) {
     return folderPath;
 }
 
-int check_path(const std::string& filepath) {
+bool check_path(const std::string& filepath) {
     std::filesystem::path path = filepath;
     if (std::filesystem::exists(path)) {
         if (std::filesystem::is_directory(path)) {
-            return 1;
+            std::cerr << "Error: This is a folder, not a file." << std::endl;
+            return false;
         }
         else if (std::filesystem::is_regular_file(path)) {
             if (path.extension() == ".obj") {
-                return 2;
+                return true;
             }
             else {
                 std::cerr << "Error: Target file is not an obj file." << std::endl;
-                return 0;
+                return false;
             }
         }
         else {
-            std::cerr << "Error: Target id not a regular file or directory." << std::endl;
-            return 0;
+            std::cerr << "Error: Target is not a regular file." << std::endl;
+            return false;
         }
     } else {
-        std::cerr << "Error: Target directory/ObjFile " << path << " does not exist." << std::endl;
+        std::cerr << "Error: Target ObjFile " << path << " does not exist." << std::endl;
         return 0;
     }
 }
@@ -415,22 +343,17 @@ int main(int argc, char* argv[])
                     << "[ue5_center_x] [ue5_center_y] [ue5_center_z] " \
                     << "[cutting_step_x] [cutting_step_y] [cutting_step_z] [scale]" \
                     << std::endl;
-        std::cerr << "<targetDir/targetObj> <outputDir> is required, the other are optional." << std::endl;
+        std::cerr << "<targetObj> <outputDir> is required, the other are optional." << std::endl;
         return 1;
     }
 
-    std::string targetDir = argv[1];
-    // std::string targetDir = ".\\tx.obj";
-    // std::string targetDir = ".\\cube.obj";
-    int path_flag = check_path(targetDir);
-    if(path_flag == 0){
+    std::string targetFile = argv[1];
+    int path_flag = check_path(targetFile);
+    if(path_flag == false){
         return 0;
     }
-    else if(path_flag == 1){
-        targetDir = ensureTrailingBackslash(targetDir);
-    }
+
     std::string outputDir = argv[2];
-    // std::string outputDir = ".\\splited_obj\\";
     outputDir = ensureTrailingBackslash(outputDir);
 
     scale = 100;
@@ -444,98 +367,31 @@ int main(int argc, char* argv[])
     cutting_step.y = std::stof(argv[10]);
     cutting_step.z = std::stof(argv[11]);
     scale = std::stof(argv[12]);
-    // ue5_model_center.x = 0.0;
-    // ue5_model_center.y = 0.0;
-    // ue5_model_center.z = 0.0;
-    // ue5_center.x = 0;
-    // ue5_center.y = 0;
-    // ue5_center.z = 0;
-    // cutting_step.x = 2000;
-    // cutting_step.y = 2000;
-    // cutting_step.z = 6000;
-    // scale = 100;
-    // ue5_model_center.x = 0.0;
-    // ue5_model_center.y = 0.0;
-    // ue5_model_center.z = 0.0;
-    // ue5_center.x = 0.0;
-    // ue5_center.y = 0.0;
-    // ue5_center.z = 0.0;
-    // cutting_step.x = 15;
-    // cutting_step.y = 15;
-    // cutting_step.z = 15;
-    // scale = 1;
 
     ue5_center = ue5_center / scale;
     ue5_model_center = ue5_model_center / scale;
     cutting_step = cutting_step / scale;
 
-    if(path_flag == 1){
-        std::filesystem::create_directory(outputDir);
-        //将输出重定向到文件
-        freopen(std::string(outputDir + "log.txt").c_str(), "w", stdout);
-        // 遍历该文件夹
-        for (auto& p : std::filesystem::directory_iterator(targetDir))
-        {
-            if (p.is_directory())
-            {
-                auto begin = std::chrono::system_clock::now();
-                count_splited_obj = 0;
-                std::string pStr = p.path().string();
-                std::string folderName = pStr.substr(pStr.find_last_of("\\") + 1);
-                std::string outputDirSplited = outputDir + folderName + "\\";
-                std::filesystem::create_directory(outputDirSplited);
-                for (auto& p2 : std::filesystem::directory_iterator(p.path()))
-                {
-                    if (p2.is_regular_file() && p2.path().extension() == ".obj")
-                    {
-                        std::string objPath = p2.path().string();
-                        splitObj(objPath, outputDirSplited, ue5_center, ue5_model_center, cutting_step);
-                    }
-                    else if(p2.is_directory())
-                    {
-                        // 复制目录
-                        copy_directory(string_to_wstring(p2.path().string()), string_to_wstring(outputDirSplited + p2.path().filename().string()));
-                    }
-                    else{
-                        // 复制文件
-                        copy_file(string_to_wstring(p2.path().string()), string_to_wstring(outputDirSplited + p2.path().filename().string()));
-                    }
-                    
-                }
-                std::chrono::duration<float> cut_spend_time = std::chrono::system_clock::now() - begin;
-                std::cout << std::endl;
-                std::cout << "finished: " << pStr << " to " << outputDirSplited << std::endl;
-                std::cerr << "finished: " << pStr << " to " << outputDirSplited << std::endl;
-                std::cout << "A total of " << count_splited_obj << " splited files are cut out" << std::endl;
-                std::cout << "The whole process takes " << cut_spend_time.count() << "s" << std::endl;
-                std::cout << "---------------------------------------------------------------------------" << std::endl;
-                std::cout << std::endl;
-            }
-        }
-    }
-    else if(path_flag == 2){
-        std::filesystem::create_directory(outputDir);
-        //将输出重定向到文件
-        freopen(std::string(outputDir + "log.txt").c_str(), "w", stdout);
+    std::filesystem::create_directory(outputDir);
+    //将输出重定向到文件
+    freopen(std::string(outputDir + "log.txt").c_str(), "w", stdout);
 
-        auto begin = std::chrono::system_clock::now();
-        count_splited_obj = 0;
-        std::string folderName = targetDir.substr(targetDir.find_last_of("\\") + 1);
-        folderName = folderName.substr(0, folderName.size() - 4);
-        std::string outputDirSplited = outputDir + folderName + "\\";
-        std::filesystem::create_directory(outputDirSplited);
+    auto begin = std::chrono::system_clock::now();
+    std::string folderName = targetFile.substr(targetFile.find_last_of("\\") + 1);
+    folderName = folderName.substr(0, folderName.size() - 4);
+    std::string outputDirSplited = outputDir + folderName + "\\";
+    std::filesystem::create_directory(outputDirSplited);
 
-        splitObj(targetDir, outputDirSplited, ue5_center, ue5_model_center, cutting_step);
+    splitObj(targetFile, outputDirSplited, ue5_center, ue5_model_center, cutting_step);
 
-        std::chrono::duration<float> cut_spend_time = std::chrono::system_clock::now() - begin;
-        std::cout << std::endl;
-        std::cout << "finished: " << targetDir << " to " << outputDirSplited << std::endl;
-        std::cerr << "finished: " << targetDir << " to " << outputDirSplited << std::endl;
-        std::cout << "A total of " << count_splited_obj << " splited files are cut out" << std::endl;
-        std::cout << "The whole process takes " << cut_spend_time.count() << "s" << std::endl;
-        std::cout << "---------------------------------------------------------------------------" << std::endl;
-        std::cout << std::endl;
-    }
+    std::chrono::duration<float> cut_spend_time = std::chrono::system_clock::now() - begin;
+    std::cout << std::endl;
+    std::cout << "finished: " << targetFile << " to " << outputDirSplited << std::endl;
+    std::cerr << "finished: " << targetFile << " to " << outputDirSplited << std::endl;
+    std::cout << "A total of " << count_splited_obj << " splited files are cut out" << std::endl;
+    std::cout << "The whole process takes " << cut_spend_time.count() << "s" << std::endl;
+    std::cout << "---------------------------------------------------------------------------" << std::endl;
+    std::cout << std::endl;
 
     std::cerr << "All done!" << std::endl;
     return 0;

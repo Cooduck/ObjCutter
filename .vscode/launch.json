@@ -4,7 +4,7 @@
             "name": "C/C++: gcc.exe 生成和调试活动文件",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/ObjCutter.exe",
+            "program": "${workspaceFolder}/cut.exe",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
