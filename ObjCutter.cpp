@@ -116,8 +116,8 @@ bool ObjModel::save(const std::string& fileName, const double & model_minz)
         for (auto& point : points)
         {
             // point.z -= model_minz;    // 模型上移，使得最低点z轴坐标为0
-            point = point - blockCenter;   // 将切出来的块的坐标轴调整到该块的中心
-            point.y = -point.y;     // 由于ue5中的y轴与obj文件中的y轴方向是相反的（即本来在obj文件中x=1的点，其在ue5中对应的x坐标在-1）,所以移动坐标系要取反 
+            // point = point - blockCenter;   // 将切出来的块的坐标轴调整到该块的中心
+            // point.y = -point.y;     // 由于ue5中的y轴与obj文件中的y轴方向是相反的（即本来在obj文件中x=1的点，其在ue5中对应的x坐标在-1）,所以移动坐标系要取反 
             newMinX = point.x < newMinX ? point.x : newMinX;
             newMinY = point.y < newMinY ? point.y : newMinY;
             newMinZ = point.z < newMinZ ? point.z : newMinZ;

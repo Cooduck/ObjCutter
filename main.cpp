@@ -23,7 +23,7 @@
 std::wstring string_to_wstring(const std::string& str);
 std::string wstring_to_string(const std::wstring& ws);
 
-std::mutex mtx1, mtx2;
+std::mutex mtx1, mtx2, mtx3;
 std::condition_variable cv1, cv2;
 int done_cnt1 = 0, done_cnt2 = 0;
 int end_sign1, end_sign2;
@@ -134,12 +134,15 @@ void producer3(const int &numStepsZ, const float &stepSize, const Vector3 &minPo
                     
                 if (cutObj && !cutObj->empty()) {
                     // 计算区块中心点的坐标
-                    cutObj->setblockCenter(x - cutting_step.x * 0.5, y - cutting_step.y * 0.5, z - cutting_step.z * 0.5);
-                    Vector3 ue5_cutting_model_center = (cutObj->getblockCenter() - modelBottomCenter + ue5_model_center) * scale;
-                    string fileName = outputDir + std::to_string(std::round(ue5_cutting_model_center.x)) + "_" + std::to_string(std::round(ue5_cutting_model_center.y)) + "_" + std::to_string(std::round(ue5_cutting_model_center.z)) + ".obj";
-                    // string fileName = outputDir + std::to_string(count_splited_obj++) + ".obj";
+                    // cutObj->setblockCenter(x - cutting_step.x * 0.5, y - cutting_step.y * 0.5, z - cutting_step.z * 0.5);
+                    // Vector3 ue5_cutting_model_center = (cutObj->getblockCenter() - modelBottomCenter + ue5_model_center) * scale;
+                    // string fileName = outputDir + std::to_string(std::round(ue5_cutting_model_center.x)) + "_" + std::to_string(std::round(ue5_cutting_model_center.y)) + "_" + std::to_string(std::round(ue5_cutting_model_center.z)) + ".obj";
+                    string fileName;
+                    {
+                        std::unique_lock<std::mutex> lock(mtx3);
+                        fileName = outputDir + std::to_string(count_splited_obj++) + ".obj";
+                    }
                     cutObj->save(fileName, model_minz);
-                    ++count_splited_obj;
                 }
 
                 auto oldCutObjY = std::move(cutObjY);
